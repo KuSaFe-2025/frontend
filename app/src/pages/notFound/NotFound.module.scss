@@ -1,0 +1,15 @@
+.notFoundContainer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+
+  .notFoundInfoContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    align-items: center;
+    text-align: center;
+    margin-top: $top-margin;
+  }
+}

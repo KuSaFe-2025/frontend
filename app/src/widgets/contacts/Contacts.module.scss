@@ -1,0 +1,72 @@
+.contactsContainer {
+  width: calc($left-main-block-width);
+
+  background-color: $color-background;
+
+  box-shadow: $block-shadow;
+  border: $block-border;
+  border-radius: $block-border-radius;
+
+  padding: 20px;
+
+  margin-top: 20px;
+
+  .formContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    width: 100%;
+
+    margin-top: 8px;
+
+    align-items: center;
+
+    .submitButton {
+      margin-top: 5px;
+      width: 35%;
+    }
+
+    .formFieldContainer {
+      width: 100%;
+
+      .formErrorMessage {
+        color: $color-accent-red;
+      }
+    }
+  }
+}
+
+@media (min-width: 320px) and (max-width: 525px) {
+  .contactsContainer {
+    width: 300px;
+
+    h1 {
+      font-size: 22px;
+      line-height: 1.2em;
+      width: 250px;
+    }
+
+    .formContainer {
+      .submitButton {
+        width: 100%;
+      }
+    }
+  }
+}
+
+@media (min-width: 526px) and (max-width: 1024px) {
+  .contactsContainer {
+    width: 550px;
+
+    h1 {
+      font-size: 2.5em;
+      line-height: 1.2em;
+    }
+
+    .formContainer {
+      .submitButton {
+        width: 100%;
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+.postContainer {
+  background-color: $color-card;
+  padding: 20px;
+  border-radius: $block-border-radius;
+  box-shadow: 0px 10px 10px $color-shadow;
+  border: $block-border;
+  margin-bottom: 24px;
+  transition: transform 0.2s ease;
+
+  &:hover {
+    transform: translateY(-4px);
+  }
+}

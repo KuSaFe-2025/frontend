@@ -1,0 +1,28 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ${IMAGE_NAME}
+    container_name: ${CONTAINER_NAME}
+    restart: always
+    stdin_open: true
+    tty: true
+    environment:
+      - PORT=${PORT}
+      - NODE_ENV=production
+    expose:
+      - "${PORT}"
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-ssl
+    restart: always
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./default.conf:/etc/nginx/conf.d/default.conf:ro
+      - /home/user/certs:/etc/nginx/certs:ro

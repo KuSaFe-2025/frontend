@@ -1,0 +1,49 @@
+.homePage {
+  background-color: $color-background;
+  padding: 0 50px;
+
+  .informationContainer {
+    margin-top: $top-margin;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 20px;
+  }
+
+  .leftColumn {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+  }
+}
+
+@media (min-width: 320px) and (max-width: 525px) {
+  .homePage {
+    padding: 0;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    .informationContainer {
+      flex-direction: column;
+      gap: 20px;
+    }
+  }
+}
+
+@media (min-width: 526px) and (max-width: 1024px) {
+  .homePage {
+    padding: 0;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+
+    .informationContainer {
+      flex-direction: column;
+      gap: 20px;
+    }
+  }
+}

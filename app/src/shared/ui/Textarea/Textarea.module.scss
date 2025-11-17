@@ -1,0 +1,26 @@
+.textareaStyles {
+  color: $color-text;
+  background-color: $color-background;
+  border-radius: 8px;
+  border: $block-border;
+
+  padding: 0.6em 1em;
+  font-size: 1em;
+  font-family: inherit;
+  transition: border-color 0.25s;
+
+  resize: vertical;
+  min-height: 100px;
+
+  &:focus {
+    border-color: #646cff;
+    box-shadow: 0 0 0 1px #646cff;
+  }
+}
+
+textarea:-webkit-autofill {
+  box-shadow: 0 0 0 1000px $color-background inset !important;
+  -webkit-box-shadow: 0 0 0 1000px $color-background inset !important;
+  -webkit-text-fill-color: $color-text !important;
+  transition: background-color 9999s ease-in-out 0s;
+}

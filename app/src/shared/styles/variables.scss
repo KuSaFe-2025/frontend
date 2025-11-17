@@ -1,0 +1,23 @@
+// 🎨 Цвета (базовые)
+$color-background: #f9f9f9;
+$color-text: #2e2e2e;
+$color-card: #ffffff;
+$color-shadow: rgba(0, 0, 0, 0.05);
+$color-border: #dcdcdc;
+
+// 🎨 Цвета акцентов
+$color-accent-blue: #5c9afd;
+$color-accent-pink: #ffc6ff;
+$color-accent-red: #f94453;
+$color-hover: #575656;
+$container-color-hover: #dadffd;
+
+// 📏 Размеры и отступы
+$left-main-block-width: 750px;
+$top-margin: 120px;
+
+// 🧱 Границы и тени
+$block-border-radius: 15px;
+$block-border: 0.5px solid $color-border;
+$block-border-accent: 0.5px solid $color-accent-blue;
+$block-shadow: 0px 5px 5px $color-shadow;
