@@ -1,6 +1,6 @@
 import { Heading, Text } from '@chakra-ui/react';
 import { motion } from 'framer-motion';
-import { ShieldCheck, ExternalLink, Slash } from 'lucide-react';
+import { ExternalLink, Slash } from 'lucide-react';
 import { useState, type ReactNode, type MouseEvent } from 'react';
 
 import styles from './ProjectCard.module.scss';
@@ -18,20 +18,16 @@ export const ProjectCard = ({ title, description, sysname, showButton }: Project
 
   const selectIcon = (sysnameProp: string) => {
     const iconsObject = {
-      shield: ShieldCheck,
       web: ExternalLink,
     };
 
     return iconsObject[sysnameProp as keyof typeof iconsObject] || Slash;
   };
 
-  const transferToCommunicate = (event: MouseEvent) => {
+  const proceedToQuiz = (event: MouseEvent) => {
     event.stopPropagation();
 
-    const message = encodeURIComponent('Hi! I want to buy VPN subscription.');
-    const telegramUrl = `https://t.me/kusafe028?text=${message}`;
-
-    window.open(telegramUrl, '_blank');
+    console.log('quiz');
   };
 
   const Icon = selectIcon(sysname);
@@ -49,12 +45,8 @@ export const ProjectCard = ({ title, description, sysname, showButton }: Project
         </div>
         <div className={`${styles.cardFace} ${styles.back}`}>
           <Text as="p">{description}</Text>
-          <MyButton
-            onClick={transferToCommunicate}
-            className={styles.cardButton}
-            hidden={!showButton}
-          >
-            Связаться
+          <MyButton onClick={proceedToQuiz} className={styles.cardButton} hidden={!showButton}>
+            Начать прохождение
           </MyButton>
         </div>
       </motion.div>

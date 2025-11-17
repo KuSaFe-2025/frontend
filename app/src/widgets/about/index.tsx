@@ -1,8 +1,8 @@
 import { Heading, Text } from '@chakra-ui/react';
-import photo from '@shared/assets/me.png';
+import photo from '@shared/assets/icons/proeject_practicum_logo.jpg';
 import { useNavigate } from 'react-router-dom';
 
-import { aboutMe } from '@/shared/assets';
+import { aboutQuizes } from '@/shared/assets';
 import { MyButton } from '@/shared/ui';
 
 import styles from './About.module.scss';
@@ -15,10 +15,10 @@ export const About = () => {
       <div className={styles.contentContainer}>
         <div className={styles.infoContainer}>
           <Heading as="h1" size="6xl">
-            Привет! Я Андрей!
+            KuSaFe Quiz
           </Heading>
           <Text as="p" marginTop={5} textStyle="2xl">
-            {aboutMe}
+            {aboutQuizes}
           </Text>
         </div>
         <div className={styles.photoContainer}>
@@ -32,7 +32,7 @@ export const About = () => {
         }}
         className={styles.showMoreButton}
       >
-        Показать проекты
+        Перейти к викторинам
       </MyButton>
     </div>
   );

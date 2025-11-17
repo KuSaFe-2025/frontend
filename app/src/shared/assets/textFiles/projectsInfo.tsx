@@ -9,41 +9,47 @@ interface ProjectInfo {
 
 export const projectInfoArray: ProjectInfo[] = [
   {
-    sysname: 'shield',
-    title: 'WinShield',
+    sysname: 'lorem',
+    title: 'Lorem Project',
     description: (
       <>
-        <strong>Собственный сервер</strong> в <strong>Амстердаме</strong>&nbsp;c&nbsp;
-        <strong>безопасным</strong> подключением.
+        <strong>Lorem ipsum dolor sit amet</strong>, consectetur adipiscing elit.
         <br />
         <br />
-        <strong>Безопасность</strong> соединения обеспечивает протокол{' '}
-        <strong>VLESS TCP REALITY</strong>.
+        <strong>Aliquam</strong> dignissim orci sed <strong>massa</strong> ultrices, a placerat{' '}
+        <strong>nibh</strong> tristique.
         <br />
         <br />
-        <strong>Этот</strong> сервис позволит вам использовать <strong>все</strong> привычные
-        ресурсы, к которым у вас <strong>пропал доступ,</strong> по <strong>приятной</strong> цене.
+        Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae;
+        <strong> Integer</strong> vulputate, velit vel cursus varius, nisl urna tincidunt nunc, at
+        tristique <strong>odio</strong> sapien vel lorem.
         <br />
         <br />
-        <strong>Стало интересно?</strong> <strong>Свяжитесь со мной</strong> через форму на{' '}
-        <strong>главной странице </strong> или нажав кнопку ниже, если у вас есть{' '}
-        <strong>Telegram.</strong>
+        <strong>Sed euismod</strong> magna et dolor imperdiet, vitae gravida ligula dictum. Donec
+        dictum risus vitae ex <strong>malesuada</strong> porttitor.
       </>
     ),
     showButton: true,
   },
   {
-    sysname: 'web',
-    title: 'Сайт kusafe.ru',
+    sysname: 'lorem',
+    title: 'Lorem Project',
     description: (
       <>
-        <strong>Персональный сайт-портфолио</strong> с возможностью публикации постов.
+        <strong>Lorem ipsum dolor sit amet</strong>, consectetur adipiscing elit.
         <br />
         <br />
-        <strong>Frontend</strong> реализован на <strong>React</strong> и <strong>Chakra UI</strong>.
+        <strong>Aliquam</strong> dignissim orci sed <strong>massa</strong> ultrices, a placerat{' '}
+        <strong>nibh</strong> tristique.
         <br />
         <br />
-        <strong>Backend</strong> на <strong>Express.js</strong>.
+        Vestibulum ante ipsum primis in faucibus orci luctus et ultrices posuere cubilia curae;
+        <strong> Integer</strong> vulputate, velit vel cursus varius, nisl urna tincidunt nunc, at
+        tristique <strong>odio</strong> sapien vel lorem.
+        <br />
+        <br />
+        <strong>Sed euismod</strong> magna et dolor imperdiet, vitae gravida ligula dictum. Donec
+        dictum risus vitae ex <strong>malesuada</strong> porttitor.
       </>
     ),
     showButton: false,

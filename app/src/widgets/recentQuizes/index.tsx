@@ -1,11 +1,11 @@
 import { ButtonGroup, Heading, Text } from '@chakra-ui/react';
 import { useEffect, useState } from 'react';
 
-import { blogText } from '@/shared/assets';
+import { quizesText } from '@/shared/assets';
 import { api } from '@/shared/lib';
 import { MyButton, Post } from '@/shared/ui';
 
-import styles from './Blog.module.scss';
+import styles from './RecentQuizes.module.scss';
 
 interface Post {
   id: number;
@@ -16,7 +16,7 @@ interface Post {
 
 const POSTS_PER_PAGE = 6;
 
-export const Blog = () => {
+export const RecentQuizes = () => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -45,12 +45,12 @@ export const Blog = () => {
   };
 
   return (
-    <div className={styles.blogContainer}>
+    <div className={styles.quizesContainer}>
       <Heading as="h1" size="5xl">
-        Блог
+        Викторины для прохождения
       </Heading>
-      <Text as="p" mb={10} textStyle="2xl">
-        {blogText}
+      <Text as="p" mb={10} style={{ whiteSpace: 'pre-wrap' }} textStyle="2xl">
+        {quizesText}
       </Text>
 
       {currentPosts && currentPosts.length > 0 ? (
@@ -63,7 +63,7 @@ export const Blog = () => {
           />
         ))
       ) : (
-        <Text>Постов пока нет</Text>
+        <Text>Викторин пока нет</Text>
       )}
 
       {totalPages > 1 && (

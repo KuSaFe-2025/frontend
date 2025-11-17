@@ -1,4 +1,4 @@
-.blogContainer {
+.quizesContainer {
   background-color: black;
   width: calc(100% - 750px);
 
@@ -21,7 +21,7 @@
 }
 
 @media (min-width: 320px) and (max-width: 525px) {
-  .blogContainer {
+  .quizesContainer {
     width: 300px;
 
     h1 {
@@ -49,7 +49,7 @@
 }
 
 @media (min-width: 526px) and (max-width: 1024px) {
-  .blogContainer {
+  .quizesContainer {
     width: 550px;
 
     h1 {

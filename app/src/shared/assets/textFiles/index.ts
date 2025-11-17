@@ -1,1 +1,1 @@
-export { aboutMe, blogText } from './text';
+export { aboutQuizes, quizesText } from './text';

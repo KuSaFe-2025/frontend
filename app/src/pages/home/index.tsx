@@ -1,4 +1,4 @@
-import { About, Blog, Header, Contacts } from '@/widgets';
+import { About, RecentQuizes, Header, Contacts } from '@/widgets';
 
 import styles from './Home.module.scss';
 
@@ -9,9 +9,9 @@ export const HomePage = () => {
       <div className={styles.informationContainer}>
         <div className={styles.leftColumn}>
           <About />
-          <Contacts />
+          {/* <Contacts /> */}
         </div>
-        <Blog />
+        <RecentQuizes />
       </div>
     </div>
   );
