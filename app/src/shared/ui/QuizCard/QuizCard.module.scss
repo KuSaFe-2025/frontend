@@ -1,13 +1,13 @@
 $card-width: 380px;
 $card-heigth: 500px;
 
-.projectCardWrapper {
+.quizCardWrapper {
   perspective: 1000px;
   width: $card-width;
   height: $card-heigth;
 }
 
-.projectCard {
+.quizCard {
   width: 100%;
   height: 100%;
   position: relative;
@@ -61,7 +61,7 @@ $card-heigth: 500px;
 }
 
 @media (max-width: 768px) {
-  .projectCardWrapper {
+  .quizCardWrapper {
     perspective: 1000px;
     width: calc($card-width * 0.8);
     height: calc($card-heigth * 0.8);

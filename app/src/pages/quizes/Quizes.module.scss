@@ -1,4 +1,4 @@
-.projectGridContainer {
+.quizGridContainer {
   margin-top: $top-margin;
   padding: 0 50px;
 
@@ -6,7 +6,7 @@
   justify-content: center;
   align-items: center;
 
-  .projectsContainer {
+  .quizsContainer {
     display: grid;
 
     grid-template-columns: repeat(2, 400px);
@@ -14,11 +14,11 @@
 }
 
 @media (max-width: 768px) {
-  .projectGridContainer {
+  .quizGridContainer {
     flex-direction: column;
     margin-bottom: 25px;
 
-    .projectsContainer {
+    .quizsContainer {
       display: flex;
       flex-direction: column;
 

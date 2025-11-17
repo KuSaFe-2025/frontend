@@ -13,12 +13,12 @@ export default defineConfig({
 
     allowedHosts: [
       'kusafe.ru',
-      'web', // ← Добавьте это
+      'web',
     ],
   },
 
   server: {
-    host: true, // или явно '0.0.0.0'
+    host: true,
     allowedHosts: ['kusafe.ru', 'web'],
   },
 

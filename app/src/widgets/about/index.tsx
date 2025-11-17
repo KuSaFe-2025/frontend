@@ -28,7 +28,7 @@ export const About = () => {
 
       <MyButton
         onClick={() => {
-          navigate('/projects');
+          navigate('/quizes');
         }}
         className={styles.showMoreButton}
       >

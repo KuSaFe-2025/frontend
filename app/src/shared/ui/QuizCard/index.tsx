@@ -3,17 +3,17 @@ import { motion } from 'framer-motion';
 import { ExternalLink, Slash } from 'lucide-react';
 import { useState, type ReactNode, type MouseEvent } from 'react';
 
-import styles from './ProjectCard.module.scss';
+import styles from './QuizCard.module.scss';
 import { MyButton } from '../Button';
 
-interface ProjectCardInfo {
+interface QuizCardInfo {
   title: string;
   description: ReactNode;
   sysname: string;
   showButton: boolean;
 }
 
-export const ProjectCard = ({ title, description, sysname, showButton }: ProjectCardInfo) => {
+export const QuizCard = ({ title, description, sysname, showButton }: QuizCardInfo) => {
   const [flip, setFlip] = useState(false);
 
   const selectIcon = (sysnameProp: string) => {
@@ -33,9 +33,9 @@ export const ProjectCard = ({ title, description, sysname, showButton }: Project
   const Icon = selectIcon(sysname);
 
   return (
-    <div className={styles.projectCardWrapper} onClick={() => setFlip(prev => !prev)}>
+    <div className={styles.quizCardWrapper} onClick={() => setFlip(prev => !prev)}>
       <motion.div
-        className={styles.projectCard}
+        className={styles.quizCard}
         animate={{ rotateY: flip ? 180 : 0 }}
         transition={{ duration: 0.4 }}
       >

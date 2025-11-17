@@ -7,7 +7,7 @@ interface ProjectInfo {
   showButton: boolean;
 }
 
-export const projectInfoArray: ProjectInfo[] = [
+export const quizInfoArray: ProjectInfo[] = [
   {
     sysname: 'lorem',
     title: 'Lorem Project',

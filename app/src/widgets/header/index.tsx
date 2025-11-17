@@ -20,10 +20,10 @@ export const Header = () => {
           Главная
         </Link>
       </div>
-      <div onClick={() => navigate('/projects')} className={styles.linkContainer}>
+      <div onClick={() => navigate('/quizes')} className={styles.linkContainer}>
         <Link
-          className={`${styles.link} ${isActive('/projects') ? styles.activeLink : ''}`}
-          to="/projects"
+          className={`${styles.link} ${isActive('/quizes') ? styles.activeLink : ''}`}
+          to="/quizes"
         >
           Викторины
         </Link>

@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
-import { HomePage, NotFound, Projects } from '@/pages';
+import { HomePage, NotFound, Quizes } from '@/pages';
 import '../shared/App.scss';
 
 function App() {
@@ -8,7 +8,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/projects" element={<Projects />} />
+        <Route path="/quizes" element={<Quizes />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>
