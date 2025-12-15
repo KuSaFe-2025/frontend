@@ -11,6 +11,8 @@ import {
   QuizPage,
   QuizPlayPage,
   QuizResultPage,
+  AdminDashboard,
+  AdminGuard,
 } from '@/pages';
 import '../shared/App.scss';
 
@@ -27,6 +29,14 @@ function App() {
         <Route path="/quiz/:quizId/play" element={<QuizPlayPage />} />
         <Route path="/quiz/:quizId/result" element={<QuizResultPage />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/admin"
+          element={
+            <AdminGuard>
+              <AdminDashboard />
+            </AdminGuard>
+          }
+        />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </BrowserRouter>

@@ -47,6 +47,12 @@ export const Header = ({ onAuthClick }: HeaderProps) => {
           )}
         </div>
 
+        {admin && (
+          <NavLink className={styles.adminBtn} to="/admin">
+            ADMIN
+          </NavLink>
+        )}
+
         <button
           className={styles.iconBtn}
           onClick={goAuth}

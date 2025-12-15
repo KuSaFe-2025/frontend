@@ -148,6 +148,8 @@
   margin: 0 auto;
   max-width: 760px;
   text-align: left;
+  white-space: pre-wrap; // сохраняет \n и пробелы, но переносит строки по ширине
+  word-break: break-word; // чтобы длинные слова не ломали верстку
 }
 
 .optionsGrid {

@@ -90,3 +90,15 @@
     background: rgba(0, 0, 0, 0.04);
   }
 }
+
+.adminBtn {
+  margin-left: auto;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  color: #111827;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+}

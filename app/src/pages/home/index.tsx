@@ -1,11 +1,13 @@
 import { useNavigate } from 'react-router-dom';
 import styles from './Home.module.scss';
-import { Header } from '@/components/Header';
+import { getAccessToken } from '@/shared/lib';
 
 export const HomePage = () => {
   const navigate = useNavigate();
 
-  const goAuth = () => navigate('/login'); // потом поменяем куда надо
+  const isAuthed = !!getAccessToken();
+
+  const goAuth = () => navigate(isAuthed ? '/quizes' : '/login');
 
   return (
     <div className={styles.page}>
