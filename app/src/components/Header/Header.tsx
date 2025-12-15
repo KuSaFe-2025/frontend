@@ -1,6 +1,8 @@
 import { useNavigate } from 'react-router-dom';
 import styles from './Header.module.scss';
 import { getAccessToken } from '@/shared/lib';
+import { isAdmin } from '@/shared/lib/authAdmin';
+import { NavLink } from 'react-router-dom';
 
 type HeaderProps = {
   onAuthClick?: () => void;
@@ -10,6 +12,8 @@ export const Header = ({ onAuthClick }: HeaderProps) => {
   const navigate = useNavigate();
 
   const goAuth = onAuthClick ?? (() => navigate(isAuthed ? '/quizes' : '/login'));
+
+  const admin = isAdmin();
 
   const isAuthed = !!getAccessToken();
 
