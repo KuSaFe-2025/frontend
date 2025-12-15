@@ -4,8 +4,6 @@ import { Header } from '@/components/Header';
 export const AboutPage = () => {
   return (
     <div className={styles.page}>
-      <Header />
-
       <div className={styles.container}>
         <section className={styles.hero}>
           <h1 className={styles.title}>О проекте KuSaFe Quiz</h1>

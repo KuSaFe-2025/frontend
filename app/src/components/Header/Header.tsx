@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import styles from './Header.module.scss';
+import { getAccessToken } from '@/shared/lib';
 
 type HeaderProps = {
   onAuthClick?: () => void;
@@ -8,7 +9,9 @@ type HeaderProps = {
 export const Header = ({ onAuthClick }: HeaderProps) => {
   const navigate = useNavigate();
 
-  const goAuth = onAuthClick ?? (() => navigate('/login'));
+  const goAuth = onAuthClick ?? (() => navigate(isAuthed ? '/quizes' : '/login'));
+
+  const isAuthed = !!getAccessToken();
 
   return (
     <header className={styles.header}>
@@ -29,6 +32,15 @@ export const Header = ({ onAuthClick }: HeaderProps) => {
           <button className={styles.navLink} onClick={() => navigate('/about')}>
             О нас
           </button>
+
+          {isAuthed && (
+            <>
+              <span className={styles.sep} />
+              <button className={styles.navLink} onClick={() => navigate('/quizes')}>
+                Викторины
+              </button>
+            </>
+          )}
         </div>
 
         <button

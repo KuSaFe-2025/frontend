@@ -1,0 +1,167 @@
+.page {
+  min-height: calc(100vh - 1px);
+  background: #ffffff;
+  color: #111827;
+}
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 36px 20px 40px;
+
+  display: flex;
+  justify-content: center;
+}
+
+.card {
+  width: 100%;
+  max-width: 520px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(17, 24, 39, 0.06);
+  padding: 22px;
+}
+
+.top {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.title {
+  margin: 0;
+  font-size: 34px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+}
+
+.active {
+  border-color: rgba(124, 58, 237, 0.35);
+  background: rgba(124, 58, 237, 0.08);
+  color: #111827;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 800;
+  color: rgba(17, 24, 39, 0.75);
+}
+
+.input {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 12px;
+  padding: 12px 12px;
+  outline: none;
+  font-size: 15px;
+
+  &:focus {
+    border-color: rgba(124, 58, 237, 0.45);
+    box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.12);
+  }
+}
+
+.submit {
+  margin-top: 4px;
+  border: 0;
+  cursor: pointer;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #7c3aed;
+  color: #fff;
+  font-size: 16px;
+
+  &:hover {
+    opacity: 0.92;
+  }
+}
+
+.hint {
+  margin-top: 4px;
+  text-align: center;
+  font-size: 13px;
+  color: rgba(17, 24, 39, 0.65);
+}
+
+.top {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.title {
+  margin: 0;
+  font-size: 34px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  text-align: center; // ✅ по центру
+}
+
+.tabs {
+  display: flex;
+  align-items: center;
+  justify-content: center; // ✅ по центру
+  gap: 10px;
+  user-select: none;
+}
+
+.tab {
+  font-weight: 900;
+  font-size: 14px;
+  color: rgba(17, 24, 39, 0.55);
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 10px;
+
+  &:hover {
+    color: rgba(17, 24, 39, 0.85);
+    background: rgba(0, 0, 0, 0.03);
+  }
+}
+
+.activeTab {
+  color: #111827;
+  background: rgba(124, 58, 237, 0.1);
+}
+
+.tabSep {
+  color: rgba(17, 24, 39, 0.35);
+  font-weight: 900;
+}
+
+.hint {
+  margin-top: 4px;
+  text-align: center;
+  font-size: 13px;
+  color: rgba(17, 24, 39, 0.65);
+}
+
+.hintLink {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 8px;
+  font-weight: 900;
+  color: #7c3aed;
+
+  &:hover {
+    background: rgba(124, 58, 237, 0.08);
+  }
+}

@@ -9,8 +9,6 @@ export const HomePage = () => {
 
   return (
     <div className={styles.page}>
-      <Header />
-
       <main className={styles.main}>
         <section className={styles.hero}>
           <h1 className={styles.title}>KuSaFe Quiz</h1>
