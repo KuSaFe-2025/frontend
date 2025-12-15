@@ -1,49 +1,79 @@
-.homePage {
-  background-color: $color-background;
-  padding: 0 50px;
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  color: #111827;
+}
 
-  .informationContainer {
-    margin-top: $top-margin;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 20px;
-  }
+.main {
+  flex: 1;
+  display: flex;
+}
 
-  .leftColumn {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    flex: 1;
+.hero {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 70px 20px 40px;
+  width: 100%;
+  text-align: center;
+}
+
+.title {
+  font-size: 56px;
+  line-height: 1.05;
+  margin: 0 0 12px;
+}
+
+.subtitle {
+  font-size: 22px;
+  margin: 0 auto 26px;
+  max-width: 720px;
+  color: rgba(17, 24, 39, 0.75);
+}
+
+.startBtn {
+  border: 0;
+  cursor: pointer;
+  font-weight: 900;
+  letter-spacing: 1px;
+  padding: 14px 28px;
+  border-radius: 14px;
+  background: #7c3aed;
+  color: #fff;
+  font-size: 18px;
+
+  &:hover {
+    opacity: 0.92;
   }
 }
 
-@media (min-width: 320px) and (max-width: 525px) {
-  .homePage {
-    padding: 0;
+.pattern {
+  height: 120px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
 
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+  background-color: #fff;
+  background-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D'http%3A//www.w3.org/2000/svg'%20width%3D'24'%20height%3D'24'%20viewBox%3D'0%200%2024%2024'%3E%3Cpath%20d%3D'M0%2024%20L24%200'%20stroke%3D'%237c3aed'%20stroke-opacity%3D'0.25'%20stroke-width%3D'2'%20fill%3D'none'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 24px 24px;
 
-    .informationContainer {
-      flex-direction: column;
-      gap: 20px;
-    }
+  animation: slide 2s linear infinite;
+}
+
+@keyframes slide {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -24px 0;
   }
 }
 
-@media (min-width: 526px) and (max-width: 1024px) {
-  .homePage {
-    padding: 0;
-
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-
-    .informationContainer {
-      flex-direction: column;
-      gap: 20px;
-    }
+@media (max-width: 700px) {
+  .title {
+    font-size: 40px;
+  }
+  .subtitle {
+    font-size: 18px;
   }
 }

@@ -1,0 +1,101 @@
+.page {
+  background: #ffffff;
+  color: #111827;
+  min-height: calc(100vh - 1px);
+}
+
+.container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 36px 20px 40px;
+}
+
+.hero {
+  text-align: center;
+  padding: 36px 24px 28px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 18px;
+  background: rgba(124, 58, 237, 0.03);
+}
+
+.title {
+  margin: 0 0 10px;
+  font-size: 44px;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  margin: 0 auto;
+  max-width: 780px;
+  font-size: 18px;
+  line-height: 1.5;
+  color: rgba(17, 24, 39, 0.75);
+}
+
+.authNote {
+  display: inline-block;
+  margin-top: 18px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(124, 58, 237, 0.25);
+  background: rgba(124, 58, 237, 0.07);
+  color: rgba(17, 24, 39, 0.85);
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.card {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 18px;
+  background: #fff;
+  padding: 22px 22px 18px;
+  box-shadow: 0 10px 30px rgba(17, 24, 39, 0.06);
+}
+
+.cardTitle {
+  font-weight: 900;
+  font-size: 16px;
+  margin: 0 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+
+  &::before {
+    content: '';
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: #7c3aed;
+    box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.15);
+  }
+}
+
+.list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: rgba(17, 24, 39, 0.9);
+
+  li {
+    margin: 6px 0;
+  }
+}
+
+@media (max-width: 820px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .title {
+    font-size: 34px;
+  }
+}
