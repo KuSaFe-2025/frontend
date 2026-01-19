@@ -83,3 +83,7 @@ api.interceptors.response.use(
     return api(original);
   }
 );
+
+export async function logout(): Promise<void> {
+  clearAccessToken();
+}
