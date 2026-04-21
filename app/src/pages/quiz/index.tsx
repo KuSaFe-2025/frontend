@@ -1,23 +1,27 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styles from './Quiz.module.scss';
-import { api } from '@/shared/lib';
-import { getAccessToken } from '@/shared/lib';
+import { api, getAccessToken } from '@/shared/lib';
 import { LeaderboardCard } from '@/components/LeaderboardCard/LeaderboardCard';
 
-type QuizMeta = {
+type TaskTypeCount = {
+  type: number;
+  count: number;
+};
+
+type GameMeta = {
   id: string;
   title: string;
   description?: string | null;
   descriptionFormat: number;
   createdAtUtc: string;
-  questionsCount: number;
+  tasksCount: number;
   themeColor?: string | null;
+  status: number;
+  ownerDisplayName: string;
+  canEdit: boolean;
+  taskTypeCounts: TaskTypeCount[];
 };
-
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
-}
 
 function hexToRgb(hex: string) {
   const v = hex.replace('#', '').trim();
@@ -36,51 +40,60 @@ function mix(a: number, b: number, t: number) {
 function buildGradient(themeColor?: string | null) {
   const base = hexToRgb(themeColor ?? '');
   if (!base) {
-    return `linear-gradient(135deg, rgba(124,58,237,0.18), rgba(168,85,247,0.14), rgba(124,58,237,0.10))`;
+    return 'linear-gradient(135deg, rgba(124,58,237,0.18), rgba(168,85,247,0.14), rgba(124,58,237,0.10))';
   }
 
-  const light = {
-    r: mix(base.r, 255, 0.55),
-    g: mix(base.g, 255, 0.55),
-    b: mix(base.b, 255, 0.55),
-  };
-
-  const dark = {
-    r: mix(base.r, 0, 0.15),
-    g: mix(base.g, 0, 0.15),
-    b: mix(base.b, 0, 0.15),
-  };
+  const light = { r: mix(base.r, 255, 0.55), g: mix(base.g, 255, 0.55), b: mix(base.b, 255, 0.55) };
+  const dark = { r: mix(base.r, 0, 0.15), g: mix(base.g, 0, 0.15), b: mix(base.b, 0, 0.15) };
 
   return `linear-gradient(135deg, rgba(${light.r},${light.g},${light.b},0.55), rgba(${base.r},${base.g},${base.b},0.22), rgba(${dark.r},${dark.g},${dark.b},0.18))`;
 }
 
+function taskTypeLabel(type: number) {
+  switch (type) {
+    case 0:
+      return 'Quiz';
+    case 1:
+      return 'True/False';
+    case 2:
+      return 'Puzzle';
+    case 3:
+      return 'Open-ended';
+    case 4:
+      return 'Poll';
+    default:
+      return 'Task';
+  }
+}
+
 export const QuizPage = () => {
-  const { quizId } = useParams<{ quizId: string }>();
+  const params = useParams<{ gameId?: string; quizId?: string }>();
+  const gameId = params.gameId ?? params.quizId;
   const navigate = useNavigate();
 
-  const [quiz, setQuiz] = useState<QuizMeta | null>(null);
+  const [game, setGame] = useState<GameMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const bg = useMemo(() => buildGradient(quiz?.themeColor), [quiz?.themeColor]);
+  const bg = useMemo(() => buildGradient(game?.themeColor), [game?.themeColor]);
 
   useEffect(() => {
-    if (!quizId) return;
+    if (!gameId) return;
 
     (async () => {
       try {
         setLoading(true);
         setErr(null);
-
-        const res = await api.get<QuizMeta>(`/v1/quizzes/${quizId}`);
-        setQuiz(res.data);
+        const res = await api.get<GameMeta>(`/v1/games/${gameId}`);
+        setGame(res.data);
       } catch (e: any) {
-        setErr(e?.response?.data ?? e?.message ?? 'Ошибка загрузки викторины');
+        setErr(String(e?.response?.data ?? e?.message ?? 'Ошибка загрузки игры'));
       } finally {
         setLoading(false);
       }
     })();
-  }, [quizId]);
+  }, [gameId]);
 
   const start = async () => {
     if (!getAccessToken()) {
@@ -89,11 +102,25 @@ export const QuizPage = () => {
     }
 
     try {
-      const res = await api.post(`/v1/quizzes/${quizId}/start`, {});
-      sessionStorage.setItem(`quiz:${quizId}:startPayload`, JSON.stringify(res.data));
-      navigate(`/quiz/${quizId}/play`);
+      const res = await api.post(`/v1/games/${gameId}/start`, {});
+      sessionStorage.setItem(`game:${gameId}:startPayload`, JSON.stringify(res.data));
+      navigate(`/game/${gameId}/play`);
     } catch (e: any) {
-      alert('Не удалось начать: ' + (e?.response?.data ?? e?.message ?? 'unknown'));
+      alert(`Не удалось начать игру: ${String(e?.response?.data ?? e?.message ?? 'unknown')}`);
+    }
+  };
+
+  const submitForVerification = async () => {
+    if (!game?.canEdit) return;
+
+    try {
+      setSubmitting(true);
+      await api.post(`/v1/my/games/${game.id}/submit-for-verification`, {});
+      alert('Игра отправлена на проверку.');
+    } catch (e: any) {
+      alert(String(e?.response?.data ?? e?.message ?? 'Не удалось отправить игру на проверку'));
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -110,16 +137,16 @@ export const QuizPage = () => {
     );
   }
 
-  if (err || !quiz) {
+  if (err || !game) {
     return (
       <div className={styles.page}>
         <main className={styles.main}>
           <div className={styles.container}>
             <div className={styles.error}>
-              <div className={styles.errorTitle}>Не удалось открыть викторину</div>
+              <div className={styles.errorTitle}>Не удалось открыть игру</div>
               <div className={styles.errorText}>{String(err ?? 'Not found')}</div>
-              <button className={styles.backBtn} onClick={() => navigate('/quizes')}>
-                ← Назад к викторинам
+              <button className={styles.backBtn} onClick={() => navigate('/games')}>
+                Назад к играм
               </button>
             </div>
           </div>
@@ -129,35 +156,66 @@ export const QuizPage = () => {
     );
   }
 
+  const canPlay = game.status === 1 || game.canEdit;
+
   return (
     <div className={styles.page}>
       <main className={styles.main}>
         <div className={styles.container}>
           <div className={styles.grid}>
-            {/* LEFT */}
             <section className={styles.leftCard} style={{ backgroundImage: bg }}>
               <div className={styles.leftInner}>
-                <div className={styles.title}>{quiz.title}</div>
-
-                <div className={styles.desc}>
-                  {quiz.description?.trim() ? quiz.description : 'Описание отсутствует.'}
-                </div>
+                <div className={styles.title}>{game.title}</div>
+                <div className={styles.desc}>{game.description?.trim() || 'Описание отсутствует.'}</div>
 
                 <div className={styles.metaRow}>
                   <div className={styles.metaItem}>
-                    <span className={styles.metaLabel}>Количество вопросов:</span>{' '}
-                    <span className={styles.metaValue}>{quiz.questionsCount}</span>
+                    <span className={styles.metaLabel}>Автор</span>
+                    <span className={styles.metaValue}>{game.ownerDisplayName}</span>
+                  </div>
+                  <div className={styles.metaItem}>
+                    <span className={styles.metaLabel}>Статус</span>
+                    <span className={styles.metaValue}>{game.status === 1 ? 'VERIFIED' : 'UNVERIFIED'}</span>
+                  </div>
+                  <div className={styles.metaItem}>
+                    <span className={styles.metaLabel}>Задач</span>
+                    <span className={styles.metaValue}>{game.tasksCount}</span>
                   </div>
                 </div>
 
-                <button className={styles.startBtn} onClick={start}>
-                  Начать
-                </button>
+                <div className={styles.metaRow}>
+                  {game.taskTypeCounts.map(item => (
+                    <div className={styles.metaItem} key={`${item.type}-${item.count}`}>
+                      <span className={styles.metaLabel}>{taskTypeLabel(item.type)}</span>
+                      <span className={styles.metaValue}>{item.count}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {canPlay ? (
+                  <button className={styles.startBtn} onClick={start}>
+                    Начать
+                  </button>
+                ) : (
+                  <button className={styles.startBtn} disabled>
+                    Игра недоступна
+                  </button>
+                )}
+
+                {game.canEdit && game.status !== 1 && (
+                  <>
+                    <button className={styles.backBtn} onClick={() => navigate('/my-games')}>
+                      Открыть кабинет автора
+                    </button>
+                    <button className={styles.backBtn} disabled={submitting} onClick={submitForVerification}>
+                      Отправить на проверку
+                    </button>
+                  </>
+                )}
               </div>
             </section>
 
-            {/* RIGHT */}
-            {quizId && <LeaderboardCard quizId={quizId} />}
+            <LeaderboardCard gameId={game.id} />
           </div>
         </div>
       </main>
