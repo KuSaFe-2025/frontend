@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import styles from './LeaderboardCard.module.scss';
-import { api, getAccessToken } from '@/shared/lib';
+import { api } from '@/shared/lib';
+import { getCurrentUserId } from '@/shared/lib/authAdmin';
 
 export type LeaderboardItem = {
   userId: string;
@@ -13,29 +14,13 @@ function msToSec(ms: number) {
   return Math.round(ms / 1000);
 }
 
-function getUserIdFromAccessToken() {
-  const token = getAccessToken();
-  if (!token) return null;
-
-  const parts = token.split('.');
-  if (parts.length !== 3) return null;
-
-  try {
-    const payloadJson = atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'));
-    const payload = JSON.parse(payloadJson);
-    return typeof payload?.sub === 'string' ? payload.sub : null;
-  } catch {
-    return null;
-  }
-}
-
-export function LeaderboardCard(props: { quizId: string; showMyPlaceIfPerfect?: boolean }) {
-  const { quizId, showMyPlaceIfPerfect } = props;
+export function LeaderboardCard(props: { gameId: string; showMyPlaceIfPerfect?: boolean }) {
+  const { gameId, showMyPlaceIfPerfect } = props;
 
   const [lb, setLb] = useState<LeaderboardItem[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const myId = useMemo(() => getUserIdFromAccessToken(), []);
+  const myId = useMemo(() => getCurrentUserId(), []);
   const myPlace = useMemo(() => {
     if (!showMyPlaceIfPerfect || !myId) return null;
     const idx = lb.findIndex(x => x.userId === myId);
@@ -43,12 +28,12 @@ export function LeaderboardCard(props: { quizId: string; showMyPlaceIfPerfect?: 
   }, [lb, myId, showMyPlaceIfPerfect]);
 
   useEffect(() => {
-    if (!quizId) return;
+    if (!gameId) return;
 
     (async () => {
       try {
         setLoading(true);
-        const res = await api.get<LeaderboardItem[]>(`/v1/quizzes/${quizId}/leaderboard`);
+        const res = await api.get<LeaderboardItem[]>(`/v1/games/${gameId}/leaderboard`);
         setLb(res.data ?? []);
       } catch {
         setLb([]);
@@ -56,7 +41,7 @@ export function LeaderboardCard(props: { quizId: string; showMyPlaceIfPerfect?: 
         setLoading(false);
       }
     })();
-  }, [quizId]);
+  }, [gameId]);
 
   return (
     <aside className={styles.card}>
