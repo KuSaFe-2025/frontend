@@ -9,7 +9,7 @@ type AnswerResponse = {
   score: number;
   maxScore: number;
   correctAnswers: number;
-  totalQuestions: number;
+  totalTasks: number;
   totalTimeMs: number;
 };
 
@@ -19,38 +19,38 @@ type ResultPayload = {
 };
 
 export const QuizResultPage = () => {
-  const { quizId } = useParams<{ quizId: string }>();
+  const params = useParams<{ gameId?: string; quizId?: string }>();
+  const gameId = params.gameId ?? params.quizId;
   const navigate = useNavigate();
-
   const [payload, setPayload] = useState<ResultPayload | null>(null);
 
   useEffect(() => {
-    if (!quizId) return;
+    if (!gameId) return;
 
-    const raw = sessionStorage.getItem(`quiz:${quizId}:resultPayload`);
+    const raw = sessionStorage.getItem(`game:${gameId}:resultPayload`);
     if (!raw) {
-      navigate(`/quizes/${quizId}`, { replace: true });
+      navigate(`/game/${gameId}`, { replace: true });
       return;
     }
 
     try {
       setPayload(JSON.parse(raw) as ResultPayload);
     } catch {
-      sessionStorage.removeItem(`quiz:${quizId}:resultPayload`);
-      navigate(`/quizes/${quizId}`, { replace: true });
+      sessionStorage.removeItem(`game:${gameId}:resultPayload`);
+      navigate(`/game/${gameId}`, { replace: true });
     }
-  }, [quizId, navigate]);
+  }, [gameId, navigate]);
 
   const isPerfect = useMemo(() => {
     if (!payload) return false;
     const f = payload.finished;
-    return f.totalQuestions > 0 && f.correctAnswers === f.totalQuestions && f.score === f.maxScore;
+    return f.totalTasks > 0 && f.score === f.maxScore && f.maxScore > 0;
   }, [payload]);
 
-  if (!quizId || !payload) return null;
+  if (!gameId || !payload) return null;
 
-  const total = payload.finished.totalQuestions;
-  const answers = Array.from({ length: total }, (_, i) => payload.answers[i] ?? false);
+  const total = payload.finished.totalTasks;
+  const answers = Array.from({ length: total }, (_, i) => payload.answers[i] ?? null);
 
   return (
     <div className={styles.page}>
@@ -59,34 +59,23 @@ export const QuizResultPage = () => {
           <div className={styles.grid}>
             <section className={styles.leftCard}>
               <div className={styles.head}>
-                <div className={styles.title}>Результаты</div>
+                <div className={styles.title}>Результаты игры</div>
                 <div className={styles.sub}>
-                  Викторина завершена: <b>{payload.finished.reason ?? 'Completed'}</b>
+                  Прохождение завершено: <b>{payload.finished.reason ?? 'Completed'}</b>
                 </div>
               </div>
 
-              <div className={styles.steps} aria-label="Результаты по вопросам">
+              <div className={styles.steps} aria-label="Результаты по заданиям">
                 {answers.map((ok, i) => (
                   <div
                     key={i}
-                    className={[styles.step, ok ? styles.stepOk : styles.stepBad].join(' ')}
-                    aria-label={`Вопрос ${i + 1}: ${ok ? 'правильно' : 'неверно'}`}
+                    className={[
+                      styles.step,
+                      ok === true ? styles.stepOk : ok === false ? styles.stepBad : styles.step,
+                    ].join(' ')}
+                    aria-label={`Задание ${i + 1}`}
                   >
-                    {ok ? (
-                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                        <path
-                          fill="currentColor"
-                          d="M9.0 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"
-                        />
-                      </svg>
-                    ) : (
-                      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                        <path
-                          fill="currentColor"
-                          d="M18.3 5.71 12 12l6.3 6.29-1.41 1.42L10.59 13.4 4.29 19.71 2.88 18.29 9.17 12 2.88 5.71 4.29 4.29l6.3 6.3 6.3-6.3z"
-                        />
-                      </svg>
-                    )}
+                    {ok === true ? '✓' : ok === false ? '×' : '•'}
                   </div>
                 ))}
               </div>
@@ -101,22 +90,30 @@ export const QuizResultPage = () => {
                 <div className={styles.statRow}>
                   <span>Правильных</span>
                   <b>
-                    {payload.finished.correctAnswers} / {payload.finished.totalQuestions}
+                    {payload.finished.correctAnswers} / {payload.finished.totalTasks}
                   </b>
+                </div>
+                <div className={styles.statRow}>
+                  <span>Время</span>
+                  <b>{Math.round(payload.finished.totalTimeMs / 1000)} с</b>
+                </div>
+                <div className={styles.statRow}>
+                  <span>Примечание</span>
+                  <b>Open-ended и Poll не влияют на счёт</b>
                 </div>
               </div>
 
               <div className={styles.actions}>
-                <button className={styles.primaryBtn} onClick={() => navigate('/quizes')}>
-                  К викторинам
+                <button className={styles.primaryBtn} onClick={() => navigate('/games')}>
+                  К играм
                 </button>
-                <button className={styles.secondaryBtn} onClick={() => navigate(`/quiz/${quizId}`)}>
-                  На страницу викторины
+                <button className={styles.secondaryBtn} onClick={() => navigate(`/game/${gameId}`)}>
+                  На страницу игры
                 </button>
               </div>
             </section>
 
-            <LeaderboardCard quizId={quizId} showMyPlaceIfPerfect={isPerfect} />
+            <LeaderboardCard gameId={gameId} showMyPlaceIfPerfect={isPerfect} />
           </div>
         </div>
       </main>
