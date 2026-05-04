@@ -2,19 +2,24 @@ import { useEffect, useMemo, useState } from 'react';
 import styles from './AdminDashboard.module.scss';
 import { api } from '@/shared/lib';
 
-type QuizListItem = {
+type DashboardMode = 'mine' | 'admin';
+
+type GameListItem = {
   id: string;
   title: string;
   description?: string | null;
   descriptionFormat?: number;
-  questionsCount: number;
+  tasksCount: number;
   themeColor?: string | null;
+  status: number;
+  ownerDisplayName: string;
 };
 
-type OptionDto = { id: string; text: string };
+type OptionDto = { id: string; text: string; isActive: boolean; sortOrder: number };
 
-type QuestionDto = {
+type TaskDto = {
   id: string;
+  type: number;
   order: number;
   text: string;
   points: number;
@@ -23,30 +28,55 @@ type QuestionDto = {
   options: OptionDto[];
 };
 
-type QuizWithQuestionsDto = {
+type GameEditorDto = {
   id: string;
   title: string;
   description?: string | null;
   descriptionFormat: number;
   themeColor?: string | null;
+  status: number;
+  ownerUserId: string;
+  ownerDisplayName: string;
   createdAtUtc: string;
-  questions: QuestionDto[];
+  updatedAtUtc: string;
+  tasks: TaskDto[];
 };
 
-type QuizUpsertRequest = {
+type GameUpsertRequest = {
   title: string;
   description?: string | null;
   descriptionFormat: number;
   themeColor?: string | null;
 };
 
-type QuestionUpsertRequest = {
+type TaskUpsertRequest = {
+  type: number;
   order: number;
   text: string;
   points: number;
   timeLimitMs: number;
   options: string[];
-  correctOptionIndex: number;
+  correctOptionIndex?: number | null;
+};
+
+type StatsTask = {
+  taskId: string;
+  text: string;
+  type: number;
+  attempts: number;
+  correctAnswers: number;
+  totalAnswers: number;
+  recentOpenAnswers: string[];
+  pollOptions: { optionId: string; text: string; votes: number }[];
+};
+
+type GameStats = {
+  gameId: string;
+  attemptsCount: number;
+  averageScore: number;
+  averageTimeMs: number;
+  perfectRate: number;
+  tasks: StatsTask[];
 };
 
 function normalizeHex(input: string) {
@@ -55,256 +85,303 @@ function normalizeHex(input: string) {
   return s.startsWith('#') ? s.toUpperCase() : `#${s.toUpperCase()}`;
 }
 
-export const AdminDashboard = () => {
-  const [list, setList] = useState<QuizListItem[]>([]);
+function taskTypeLabel(type: number) {
+  switch (type) {
+    case 0:
+      return 'Quiz';
+    case 1:
+      return 'True/False';
+    case 2:
+      return 'Puzzle';
+    case 3:
+      return 'Open-ended';
+    case 4:
+      return 'Poll';
+    default:
+      return 'Task';
+  }
+}
+
+export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
+  const basePath = mode === 'admin' ? '/v1/admin/games' : '/v1/my/games';
+  const [list, setList] = useState<GameListItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [quiz, setQuiz] = useState<QuizWithQuestionsDto | null>(null);
+  const [game, setGame] = useState<GameEditorDto | null>(null);
+  const [stats, setStats] = useState<GameStats | null>(null);
 
   const [loadingList, setLoadingList] = useState(false);
-  const [loadingQuiz, setLoadingQuiz] = useState(false);
+  const [loadingGame, setLoadingGame] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const [quizForm, setQuizForm] = useState<QuizUpsertRequest>({
+  const [gameForm, setGameForm] = useState<GameUpsertRequest>({
     title: '',
     description: '',
-    descriptionFormat: 0,
+    descriptionFormat: 1,
     themeColor: '#7C3AED',
   });
 
-  const [qFormOpen, setQFormOpen] = useState(false);
-  const [qEditId, setQEditId] = useState<string | null>(null);
-  const [qForm, setQForm] = useState<QuestionUpsertRequest>({
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
+  const [taskEditId, setTaskEditId] = useState<string | null>(null);
+  const [taskForm, setTaskForm] = useState<TaskUpsertRequest>({
+    type: 0,
     order: 0,
     text: '',
-    points: 10,
+    points: 100,
     timeLimitMs: 60000,
-    options: [''],
+    options: ['', ''],
     correctOptionIndex: 0,
   });
 
   const [creatingNew, setCreatingNew] = useState(false);
 
-  const beginCreateQuiz = () => {
-    setErr(null);
-    setCreatingNew(true);
-    setSelectedId(null);
-    setQuiz(null);
-    setQFormOpen(false);
-    setQEditId(null);
-
-    setQuizForm({
-      title: '',
-      description: '',
-      descriptionFormat: 0,
-      themeColor: '#7C3AED',
-    });
-  };
-
   const refreshList = async () => {
     setLoadingList(true);
     setErr(null);
     try {
-      const res = await api.get<QuizListItem[]>('/v1/quizzes');
+      const res = await api.get<GameListItem[]>(basePath);
       setList(res.data ?? []);
       if (!creatingNew && !selectedId && (res.data?.length ?? 0) > 0) {
         setSelectedId(res.data[0].id);
       }
     } catch (e: any) {
-      setErr(String(e?.response?.data ?? e?.message ?? 'Ошибка загрузки списка квизов'));
+      setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось загрузить список игр'));
     } finally {
       setLoadingList(false);
     }
   };
 
-  const loadQuiz = async (id: string) => {
-    setLoadingQuiz(true);
+  const loadGame = async (id: string) => {
+    setLoadingGame(true);
     setErr(null);
     try {
-      const res = await api.get<QuizWithQuestionsDto>(`/v1/admin/quizzes/${id}`);
-      setQuiz(res.data);
-      setQuizForm({
-        title: res.data.title ?? '',
-        description: res.data.description ?? '',
-        descriptionFormat: res.data.descriptionFormat ?? 0,
-        themeColor: res.data.themeColor ?? '#7C3AED',
+      const [gameRes, statsRes] = await Promise.all([
+        api.get<GameEditorDto>(`${basePath}/${id}`),
+        api.get<GameStats>(`${basePath}/${id}/stats`),
+      ]);
+      setGame(gameRes.data);
+      setStats(statsRes.data);
+      setGameForm({
+        title: gameRes.data.title ?? '',
+        description: gameRes.data.description ?? '',
+        descriptionFormat: gameRes.data.descriptionFormat ?? 1,
+        themeColor: gameRes.data.themeColor ?? '#7C3AED',
       });
-      setQFormOpen(false);
-      setQEditId(null);
+      setTaskFormOpen(false);
+      setTaskEditId(null);
     } catch (e: any) {
-      setErr(String(e?.response?.data ?? e?.message ?? 'Ошибка загрузки квиза'));
-      setQuiz(null);
+      setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось загрузить игру'));
+      setGame(null);
+      setStats(null);
     } finally {
-      setLoadingQuiz(false);
+      setLoadingGame(false);
     }
   };
 
   useEffect(() => {
-    refreshList();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void refreshList();
+  }, [basePath]);
 
   useEffect(() => {
-    if (selectedId) loadQuiz(selectedId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (selectedId) void loadGame(selectedId);
   }, [selectedId]);
 
-  const createQuiz = async () => {
-    const title = (quizForm.title ?? '').trim();
-    if (!title) {
-      setErr('Title is required.');
-      return;
-    }
+  const beginCreateGame = () => {
+    setCreatingNew(true);
+    setSelectedId(null);
+    setGame(null);
+    setStats(null);
+    setTaskFormOpen(false);
+    setTaskEditId(null);
+    setGameForm({
+      title: '',
+      description: '',
+      descriptionFormat: 1,
+      themeColor: '#7C3AED',
+    });
+  };
+
+  const createGame = async () => {
+    const title = (gameForm.title ?? '').trim();
+    if (!title) return setErr('Title is required.');
 
     setBusy(true);
     setErr(null);
     try {
-      const payload: QuizUpsertRequest = {
-        ...quizForm,
+      const res = await api.post<{ id: string }>(basePath, {
+        ...gameForm,
         title,
-        themeColor: normalizeHex(quizForm.themeColor ?? ''),
-      };
-      const res = await api.post<{ id: string }>('/v1/admin/quizzes', payload);
+        themeColor: normalizeHex(gameForm.themeColor ?? ''),
+      });
       await refreshList();
+      setCreatingNew(false);
       setSelectedId(res.data.id);
     } catch (e: any) {
-      setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось создать квиз'));
+      setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось создать игру'));
     } finally {
       setBusy(false);
     }
   };
 
-  const saveQuiz = async () => {
-    if (!quiz) return;
+  const saveGame = async () => {
+    if (!game) return;
     setBusy(true);
     setErr(null);
     try {
-      const payload: QuizUpsertRequest = {
-        ...quizForm,
-        title: (quizForm.title ?? '').trim(),
-        themeColor: normalizeHex(quizForm.themeColor ?? ''),
-      };
-      await api.put(`/v1/admin/quizzes/${quiz.id}`, payload);
-      await loadQuiz(quiz.id);
+      await api.put(`${basePath}/${game.id}`, {
+        ...gameForm,
+        title: (gameForm.title ?? '').trim(),
+        themeColor: normalizeHex(gameForm.themeColor ?? ''),
+      });
+      await loadGame(game.id);
       await refreshList();
     } catch (e: any) {
-      setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось сохранить квиз'));
+      setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось сохранить игру'));
     } finally {
       setBusy(false);
     }
   };
 
-  const deleteQuiz = async () => {
-    if (!quiz) return;
+  const deleteGame = async () => {
+    if (!game) return;
     setBusy(true);
     setErr(null);
     try {
-      await api.delete(`/v1/admin/quizzes/${quiz.id}`);
-      setQuiz(null);
+      await api.delete(`${basePath}/${game.id}`);
+      setGame(null);
+      setStats(null);
       setSelectedId(null);
       await refreshList();
     } catch (e: any) {
-      setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось удалить квиз'));
+      setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось удалить игру'));
     } finally {
       setBusy(false);
     }
   };
 
-  const openCreateQuestion = () => {
-    if (!quiz) return;
-    setQEditId(null);
-    setQForm({
-      order: quiz.questions?.length ?? 0,
+  const setStatus = async (status: number) => {
+    if (!game || mode !== 'admin') return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.put(`${basePath}/${game.id}/status?status=${status}`);
+      await loadGame(game.id);
+      await refreshList();
+    } catch (e: any) {
+      setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось изменить статус'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitForVerification = async () => {
+    if (!game || mode !== 'mine') return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.post(`${basePath}/${game.id}/submit-for-verification`, {});
+      await loadGame(game.id);
+    } catch (e: any) {
+      setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось отправить игру на проверку'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openCreateTask = () => {
+    const order = game?.tasks?.length ?? 0;
+    setTaskEditId(null);
+    setTaskForm({
+      type: 0,
+      order,
       text: '',
-      points: 10,
+      points: 100,
       timeLimitMs: 60000,
       options: ['', ''],
       correctOptionIndex: 0,
     });
-    setQFormOpen(true);
+    setTaskFormOpen(true);
   };
 
-  const openEditQuestion = (q: QuestionDto) => {
-    const correctIdx = Math.max(
-      0,
-      q.options.findIndex(o => o.id === q.correctOptionId)
-    );
-
-    setQEditId(q.id);
-    setQForm({
-      order: q.order,
-      text: q.text ?? '',
-      points: q.points ?? 0,
-      timeLimitMs: q.timeLimitMs ?? 60000,
-      options: (q.options ?? []).map(o => o.text ?? ''),
-      correctOptionIndex: correctIdx,
+  const openEditTask = (task: TaskDto) => {
+    const sortedOptions = (task.options ?? []).filter(x => x.isActive).sort((a, b) => a.sortOrder - b.sortOrder);
+    const correctIndex = sortedOptions.findIndex(x => x.id === task.correctOptionId);
+    setTaskEditId(task.id);
+    setTaskForm({
+      type: task.type,
+      order: task.order,
+      text: task.text,
+      points: task.points,
+      timeLimitMs: task.timeLimitMs,
+      options: sortedOptions.map(x => x.text),
+      correctOptionIndex: correctIndex >= 0 ? correctIndex : 0,
     });
-    setQFormOpen(true);
+    setTaskFormOpen(true);
   };
 
-  const saveQuestion = async () => {
-    if (!quiz) return;
+  const saveTask = async () => {
+    if (!game) return;
     setBusy(true);
     setErr(null);
 
-    const payload: QuestionUpsertRequest = {
-      order: Number(qForm.order),
-      text: (qForm.text ?? '').trim(),
-      points: Number(qForm.points),
-      timeLimitMs: Number(qForm.timeLimitMs),
-      options: (qForm.options ?? []).map(x => (x ?? '').trim()),
-      correctOptionIndex: Number(qForm.correctOptionIndex),
+    const payload: TaskUpsertRequest = {
+      type: Number(taskForm.type),
+      order: Number(taskForm.order),
+      text: (taskForm.text ?? '').trim(),
+      points: Number(taskForm.points),
+      timeLimitMs: Number(taskForm.timeLimitMs),
+      options: (taskForm.options ?? []).map(x => (x ?? '').trim()).filter(Boolean),
+      correctOptionIndex:
+        taskForm.type === 0 || taskForm.type === 1 ? Number(taskForm.correctOptionIndex ?? 0) : null,
     };
 
     try {
-      if (!qEditId) {
-        await api.post(`/v1/admin/quizzes/${quiz.id}/questions`, payload);
+      if (taskEditId) {
+        await api.put(`${basePath}/${game.id}/tasks/${taskEditId}`, payload);
       } else {
-        await api.put(`/v1/admin/quizzes/${quiz.id}/questions/${qEditId}`, payload);
+        await api.post(`${basePath}/${game.id}/tasks`, payload);
       }
-      await loadQuiz(quiz.id);
+      await loadGame(game.id);
       await refreshList();
-      setQFormOpen(false);
-      setQEditId(null);
+      setTaskFormOpen(false);
+      setTaskEditId(null);
     } catch (e: any) {
-      setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось сохранить вопрос'));
+      setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось сохранить задачу'));
     } finally {
       setBusy(false);
     }
   };
 
-  const deleteQuestion = async (questionId: string) => {
-    if (!quiz) return;
+  const deleteTask = async (taskId: string) => {
+    if (!game) return;
     setBusy(true);
     setErr(null);
     try {
-      await api.delete(`/v1/admin/quizzes/${quiz.id}/questions/${questionId}`);
-      await loadQuiz(quiz.id);
+      await api.delete(`${basePath}/${game.id}/tasks/${taskId}`);
+      await loadGame(game.id);
       await refreshList();
     } catch (e: any) {
-      setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось удалить вопрос'));
+      setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось удалить задачу'));
     } finally {
       setBusy(false);
     }
   };
 
   const right = useMemo(() => {
-    if (loadingQuiz) return <div className={styles.state}>Загрузка квиза…</div>;
-
-    if (!quiz && !creatingNew)
-      return <div className={styles.state}>Выбери квиз слева или создай новый</div>;
+    if (loadingGame) return <div className={styles.state}>Загрузка игры…</div>;
+    if (!game && !creatingNew) return <div className={styles.state}>Выберите игру слева</div>;
 
     return (
       <div className={styles.panel}>
         <div className={styles.block}>
-          <div className={styles.blockTitle}>Квиз</div>
+          <div className={styles.blockTitle}>Игра</div>
 
           <div className={styles.row}>
             <label className={styles.label}>Title</label>
             <input
               className={styles.input}
-              value={quizForm.title}
-              onChange={e => setQuizForm(p => ({ ...p, title: e.target.value }))}
+              value={gameForm.title}
+              onChange={e => setGameForm(p => ({ ...p, title: e.target.value }))}
             />
           </div>
 
@@ -312,8 +389,8 @@ export const AdminDashboard = () => {
             <label className={styles.label}>Description</label>
             <textarea
               className={styles.textarea}
-              value={quizForm.description ?? ''}
-              onChange={e => setQuizForm(p => ({ ...p, description: e.target.value }))}
+              value={gameForm.description ?? ''}
+              onChange={e => setGameForm(p => ({ ...p, description: e.target.value }))}
             />
           </div>
 
@@ -322,10 +399,8 @@ export const AdminDashboard = () => {
               <label className={styles.label}>DescriptionFormat</label>
               <select
                 className={styles.input}
-                value={quizForm.descriptionFormat}
-                onChange={e =>
-                  setQuizForm(p => ({ ...p, descriptionFormat: Number(e.target.value) }))
-                }
+                value={gameForm.descriptionFormat}
+                onChange={e => setGameForm(p => ({ ...p, descriptionFormat: Number(e.target.value) }))}
               >
                 <option value={0}>Plain</option>
                 <option value={1}>Markdown</option>
@@ -336,50 +411,68 @@ export const AdminDashboard = () => {
               <label className={styles.label}>ThemeColor</label>
               <input
                 className={styles.input}
-                value={quizForm.themeColor ?? ''}
-                onChange={e => setQuizForm(p => ({ ...p, themeColor: e.target.value }))}
+                value={gameForm.themeColor ?? ''}
+                onChange={e => setGameForm(p => ({ ...p, themeColor: e.target.value }))}
                 placeholder="#7C3AED"
               />
             </div>
+
+            <div className={styles.col}>
+              <label className={styles.label}>Status</label>
+              <div className={styles.input}>{game ? (game.status === 1 ? 'VERIFIED' : 'UNVERIFIED') : 'NEW'}</div>
+            </div>
           </div>
+
+          {game && (
+            <div className={styles.row2}>
+              <div className={styles.col}>
+                <label className={styles.label}>Owner</label>
+                <div className={styles.input}>{game.ownerDisplayName}</div>
+              </div>
+              <div className={styles.col}>
+                <label className={styles.label}>Created</label>
+                <div className={styles.input}>{new Date(game.createdAtUtc).toLocaleString()}</div>
+              </div>
+              <div className={styles.col}>
+                <label className={styles.label}>Updated</label>
+                <div className={styles.input}>{new Date(game.updatedAtUtc).toLocaleString()}</div>
+              </div>
+            </div>
+          )}
 
           <div className={styles.actions}>
             {creatingNew ? (
               <>
-                <button
-                  className={styles.primary}
-                  disabled={busy}
-                  onClick={createQuiz}
-                  type="button"
-                >
+                <button className={styles.primary} disabled={busy} onClick={createGame} type="button">
                   Создать
                 </button>
-                <button
-                  className={styles.secondary}
-                  disabled={busy}
-                  onClick={() => {
-                    setCreatingNew(false);
-                    setErr(null);
-                    if (list.length > 0) setSelectedId(list[0].id);
-                  }}
-                  type="button"
-                >
+                <button className={styles.secondary} disabled={busy} onClick={() => setCreatingNew(false)} type="button">
                   Отмена
                 </button>
               </>
             ) : (
               <>
-                <button className={styles.primary} disabled={busy} onClick={saveQuiz} type="button">
+                <button className={styles.primary} disabled={busy} onClick={saveGame} type="button">
                   Сохранить
                 </button>
-                <button
-                  className={styles.danger}
-                  disabled={busy}
-                  onClick={deleteQuiz}
-                  type="button"
-                >
+                <button className={styles.danger} disabled={busy} onClick={deleteGame} type="button">
                   Удалить
                 </button>
+                {mode === 'mine' && game && game.status !== 1 && (
+                  <button className={styles.secondary} disabled={busy} onClick={submitForVerification} type="button">
+                    На проверку
+                  </button>
+                )}
+                {mode === 'admin' && game && (
+                  <>
+                    <button className={styles.secondary} disabled={busy} onClick={() => setStatus(1)} type="button">
+                      Verify
+                    </button>
+                    <button className={styles.secondary} disabled={busy} onClick={() => setStatus(0)} type="button">
+                      Unverify
+                    </button>
+                  </>
+                )}
               </>
             )}
           </div>
@@ -387,49 +480,35 @@ export const AdminDashboard = () => {
 
         <div className={styles.block}>
           <div className={styles.blockHead}>
-            <div className={styles.blockTitle}>Вопросы</div>
-            <button
-              className={styles.secondary}
-              disabled={busy}
-              onClick={openCreateQuestion}
-              type="button"
-            >
-              + Добавить
-            </button>
+            <div className={styles.blockTitle}>Задачи</div>
+            {!creatingNew && (
+              <button className={styles.secondary} disabled={busy} onClick={openCreateTask} type="button">
+                + Добавить
+              </button>
+            )}
           </div>
 
           <div className={styles.questions}>
-            {(quiz?.questions ?? [])
+            {(game?.tasks ?? [])
               .slice()
               .sort((a, b) => a.order - b.order)
-              .map(q => (
-                <div key={q.id} className={styles.qRow}>
+              .map(task => (
+                <div key={task.id} className={styles.qRow}>
                   <div className={styles.qMain}>
                     <div className={styles.qTop}>
-                      <div className={styles.qOrder}>#{q.order + 1}</div>
+                      <div className={styles.qOrder}>#{task.order + 1}</div>
                       <div className={styles.qMeta}>
-                        {q.points} очк · {Math.round(q.timeLimitMs / 1000)}с ·{' '}
-                        {q.options?.length ?? 0} опц
+                        {taskTypeLabel(task.type)} · {task.points} очков · {Math.round(task.timeLimitMs / 1000)}с
                       </div>
                     </div>
-                    <div className={styles.qText}>{q.text}</div>
+                    <div className={styles.qText}>{task.text}</div>
                   </div>
 
                   <div className={styles.qBtns}>
-                    <button
-                      className={styles.small}
-                      disabled={busy}
-                      onClick={() => openEditQuestion(q)}
-                      type="button"
-                    >
+                    <button className={styles.small} disabled={busy} onClick={() => openEditTask(task)} type="button">
                       Edit
                     </button>
-                    <button
-                      className={styles.smallDanger}
-                      disabled={busy}
-                      onClick={() => deleteQuestion(q.id)}
-                      type="button"
-                    >
+                    <button className={styles.smallDanger} disabled={busy} onClick={() => deleteTask(task.id)} type="button">
                       Delete
                     </button>
                   </div>
@@ -437,157 +516,187 @@ export const AdminDashboard = () => {
               ))}
           </div>
 
-          {qFormOpen && (
+          {taskFormOpen && (
             <div className={styles.editor}>
-              <div className={styles.editorTitle}>
-                {qEditId ? 'Редактирование вопроса' : 'Новый вопрос'}
-              </div>
+              <div className={styles.editorTitle}>{taskEditId ? 'Редактирование задачи' : 'Новая задача'}</div>
 
               <div className={styles.row2}>
                 <div className={styles.col}>
-                  <label className={styles.label}>Order (0-based)</label>
-                  <input
+                  <label className={styles.label}>Type</label>
+                  <select
                     className={styles.input}
-                    type="number"
-                    value={qForm.order}
-                    onChange={e => setQForm(p => ({ ...p, order: Number(e.target.value) }))}
-                  />
+                    value={taskForm.type}
+                    onChange={e => setTaskForm(p => ({ ...p, type: Number(e.target.value) }))}
+                  >
+                    <option value={0}>Quiz</option>
+                    <option value={1}>True/False</option>
+                    <option value={2}>Puzzle</option>
+                    <option value={3}>Open-ended</option>
+                    <option value={4}>Poll</option>
+                  </select>
                 </div>
                 <div className={styles.col}>
-                  <label className={styles.label}>Points</label>
-                  <input
-                    className={styles.input}
-                    type="number"
-                    value={qForm.points}
-                    onChange={e => setQForm(p => ({ ...p, points: Number(e.target.value) }))}
-                  />
+                  <label className={styles.label}>Order</label>
+                  <input className={styles.input} type="number" value={taskForm.order} onChange={e => setTaskForm(p => ({ ...p, order: Number(e.target.value) }))} />
                 </div>
                 <div className={styles.col}>
                   <label className={styles.label}>TimeLimitMs</label>
-                  <input
-                    className={styles.input}
-                    type="number"
-                    value={qForm.timeLimitMs}
-                    onChange={e => setQForm(p => ({ ...p, timeLimitMs: Number(e.target.value) }))}
-                  />
+                  <input className={styles.input} type="number" value={taskForm.timeLimitMs} onChange={e => setTaskForm(p => ({ ...p, timeLimitMs: Number(e.target.value) }))} />
                 </div>
               </div>
 
               <div className={styles.row}>
                 <label className={styles.label}>Text</label>
-                <textarea
-                  className={styles.textarea}
-                  value={qForm.text}
-                  onChange={e => setQForm(p => ({ ...p, text: e.target.value }))}
-                />
+                <textarea className={styles.textarea} value={taskForm.text} onChange={e => setTaskForm(p => ({ ...p, text: e.target.value }))} />
               </div>
 
-              <div className={styles.row}>
-                <div className={styles.label}>Options</div>
-                <div className={styles.opts}>
-                  {(qForm.options ?? []).map((v, idx) => (
-                    <div key={idx} className={styles.optRow}>
-                      <input
-                        className={styles.optRadio}
-                        type="radio"
-                        checked={qForm.correctOptionIndex === idx}
-                        onChange={() => setQForm(p => ({ ...p, correctOptionIndex: idx }))}
-                      />
-                      <input
-                        className={styles.input}
-                        value={v}
-                        onChange={e => {
-                          const next = (qForm.options ?? []).slice();
-                          next[idx] = e.target.value;
-                          setQForm(p => ({ ...p, options: next }));
-                        }}
-                      />
-                      <button
-                        className={styles.smallDanger}
-                        type="button"
-                        disabled={(qForm.options?.length ?? 0) <= 2}
-                        onClick={() => {
-                          const next = (qForm.options ?? []).slice();
-                          next.splice(idx, 1);
-                          const nextCorrect = Math.min(qForm.correctOptionIndex, next.length - 1);
-                          setQForm(p => ({ ...p, options: next, correctOptionIndex: nextCorrect }));
-                        }}
-                      >
-                        –
-                      </button>
-                    </div>
-                  ))}
-
-                  <button
-                    className={styles.secondary}
-                    type="button"
-                    onClick={() => setQForm(p => ({ ...p, options: [...(p.options ?? []), ''] }))}
-                  >
-                    + Option
-                  </button>
+              {taskForm.type !== 3 && taskForm.type !== 4 && (
+                <div className={styles.row}>
+                  <label className={styles.label}>Points</label>
+                  <input className={styles.input} type="number" value={taskForm.points} onChange={e => setTaskForm(p => ({ ...p, points: Number(e.target.value) }))} />
                 </div>
-              </div>
+              )}
+
+              {taskForm.type !== 3 && (
+                <div className={styles.row}>
+                  <div className={styles.label}>Options</div>
+                  <div className={styles.opts}>
+                    {(taskForm.type === 1 ? ['Правда', 'Ложь'] : taskForm.options).map((value, index) => (
+                      <div key={`${index}-${value}`} className={styles.optRow}>
+                        {(taskForm.type === 0 || taskForm.type === 1) && (
+                          <input
+                            className={styles.optRadio}
+                            type="radio"
+                            checked={Number(taskForm.correctOptionIndex ?? 0) === index}
+                            onChange={() => setTaskForm(p => ({ ...p, correctOptionIndex: index }))}
+                          />
+                        )}
+                        <input
+                          className={styles.input}
+                          disabled={taskForm.type === 1}
+                          value={value}
+                          onChange={e => {
+                            const next = (taskForm.options ?? []).slice();
+                            next[index] = e.target.value;
+                            setTaskForm(p => ({ ...p, options: next }));
+                          }}
+                        />
+                        {taskForm.type !== 1 && (
+                          <button
+                            className={styles.smallDanger}
+                            type="button"
+                            disabled={(taskForm.options?.length ?? 0) <= 2}
+                            onClick={() => {
+                              const next = (taskForm.options ?? []).slice();
+                              next.splice(index, 1);
+                              setTaskForm(p => ({ ...p, options: next }));
+                            }}
+                          >
+                            -
+                          </button>
+                        )}
+                      </div>
+                    ))}
+
+                    {taskForm.type !== 1 && taskForm.type !== 3 && (
+                      <button className={styles.secondary} type="button" onClick={() => setTaskForm(p => ({ ...p, options: [...p.options, ''] }))}>
+                        + Option
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className={styles.actions}>
-                <button
-                  className={styles.primary}
-                  disabled={busy}
-                  onClick={saveQuestion}
-                  type="button"
-                >
-                  Сохранить вопрос
+                <button className={styles.primary} disabled={busy} onClick={saveTask} type="button">
+                  Сохранить задачу
                 </button>
-                <button
-                  className={styles.secondary}
-                  disabled={busy}
-                  onClick={() => {
-                    setQFormOpen(false);
-                    setQEditId(null);
-                  }}
-                  type="button"
-                >
+                <button className={styles.secondary} disabled={busy} onClick={() => setTaskFormOpen(false)} type="button">
                   Закрыть
                 </button>
               </div>
             </div>
           )}
         </div>
+
+        {stats && (
+          <div className={styles.block}>
+            <div className={styles.blockTitle}>Статистика</div>
+            <div className={styles.row2}>
+              <div className={styles.col}>
+                <label className={styles.label}>Attempts</label>
+                <div className={styles.input}>{stats.attemptsCount}</div>
+              </div>
+              <div className={styles.col}>
+                <label className={styles.label}>AverageScore</label>
+                <div className={styles.input}>{stats.averageScore.toFixed(1)}</div>
+              </div>
+              <div className={styles.col}>
+                <label className={styles.label}>PerfectRate</label>
+                <div className={styles.input}>{Math.round(stats.perfectRate * 100)}%</div>
+              </div>
+            </div>
+
+            <div className={styles.questions}>
+              {stats.tasks.map(task => (
+                <div key={task.taskId} className={styles.qRow}>
+                  <div className={styles.qMain}>
+                    <div className={styles.qTop}>
+                      <div className={styles.qOrder}>{taskTypeLabel(task.type)}</div>
+                      <div className={styles.qMeta}>
+                        ответов {task.totalAnswers} · верных {task.correctAnswers}
+                      </div>
+                    </div>
+                    <div className={styles.qText}>{task.text}</div>
+                    {task.recentOpenAnswers.length > 0 && (
+                      <div className={styles.qMeta}>Последние ответы: {task.recentOpenAnswers.join(' | ')}</div>
+                    )}
+                    {task.pollOptions.length > 0 && (
+                      <div className={styles.qMeta}>
+                        {task.pollOptions.map(option => `${option.text}: ${option.votes}`).join(' · ')}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
-  }, [busy, loadingQuiz, qEditId, qForm, qFormOpen, quiz, quizForm]);
+  }, [busy, creatingNew, game, gameForm, loadingGame, mode, stats, taskEditId, taskForm, taskFormOpen]);
 
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
         <div className={styles.left}>
           <div className={styles.leftHead}>
-            <div className={styles.h1}>Admin</div>
-            <button
-              className={styles.secondary}
-              disabled={busy}
-              onClick={beginCreateQuiz}
-              type="button"
-            >
-              + Новый квиз
-            </button>
+            <div className={styles.h1}>{mode === 'admin' ? 'Admin Games' : 'My Games'}</div>
+            {mode === 'mine' && (
+              <button className={styles.secondary} disabled={busy} onClick={beginCreateGame} type="button">
+                + Новая игра
+              </button>
+            )}
           </div>
 
           {loadingList ? (
             <div className={styles.state}>Загрузка…</div>
           ) : (
             <div className={styles.list}>
-              {list.map(x => (
+              {list.map(item => (
                 <button
-                  key={x.id}
+                  key={item.id}
                   type="button"
-                  className={[styles.item, selectedId === x.id ? styles.itemActive : ''].join(' ')}
+                  className={[styles.item, selectedId === item.id ? styles.itemActive : ''].join(' ')}
                   onClick={() => {
                     setCreatingNew(false);
-                    setSelectedId(x.id);
+                    setSelectedId(item.id);
                   }}
                 >
-                  <div className={styles.itemTitle}>{x.title}</div>
-                  <div className={styles.itemMeta}>{x.questionsCount} вопросов</div>
+                  <div className={styles.itemTitle}>{item.title}</div>
+                  <div className={styles.itemMeta}>
+                    {item.tasksCount} задач · {item.status === 1 ? 'VERIFIED' : 'UNVERIFIED'} · {item.ownerDisplayName}
+                  </div>
                 </button>
               ))}
             </div>
