@@ -1,8 +1,7 @@
-import { useNavigate } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import styles from './Header.module.scss';
 import { getAccessToken, logout } from '@/shared/lib';
 import { isAdmin } from '@/shared/lib/authAdmin';
-import { NavLink } from 'react-router-dom';
 
 type HeaderProps = {
   onAuthClick?: () => void;
@@ -10,12 +9,10 @@ type HeaderProps = {
 
 export const Header = ({ onAuthClick }: HeaderProps) => {
   const navigate = useNavigate();
-
-  const goAuth = onAuthClick ?? (() => navigate(isAuthed ? '/quizes' : '/login'));
-
+  const isAuthed = !!getAccessToken();
   const admin = isAdmin();
 
-  const isAuthed = !!getAccessToken();
+  const goAuth = onAuthClick ?? (() => navigate(isAuthed ? '/games' : '/login'));
 
   const handleLogout = async () => {
     await logout();
@@ -42,11 +39,17 @@ export const Header = ({ onAuthClick }: HeaderProps) => {
             О нас
           </button>
 
+          <span className={styles.sep} />
+
+          <button className={styles.navLink} onClick={() => navigate('/games')}>
+            Игры
+          </button>
+
           {isAuthed && (
             <>
               <span className={styles.sep} />
-              <button className={styles.navLink} onClick={() => navigate('/quizes')}>
-                Викторины
+              <button className={styles.navLink} onClick={() => navigate('/my-games')}>
+                Мои игры
               </button>
             </>
           )}

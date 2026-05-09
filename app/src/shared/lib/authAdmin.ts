@@ -7,17 +7,26 @@ function b64UrlToJson(b64url: string) {
   return JSON.parse(str);
 }
 
-export function isAdmin(): boolean {
+export function getAccessTokenPayload(): Record<string, unknown> | null {
   const token = getAccessToken();
-  if (!token) return false;
+  if (!token) return null;
 
   const parts = token.split('.');
-  if (parts.length !== 3) return false;
+  if (parts.length !== 3) return null;
 
   try {
-    const payload = b64UrlToJson(parts[1]) as any;
-    return String(payload?.isAdmin).toLowerCase() === 'true';
+    return b64UrlToJson(parts[1]) as Record<string, unknown>;
   } catch {
-    return false;
+    return null;
   }
+}
+
+export function isAdmin(): boolean {
+  const payload = getAccessTokenPayload();
+  return String(payload?.isAdmin ?? '').toLowerCase() === 'true';
+}
+
+export function getCurrentUserId(): string | null {
+  const payload = getAccessTokenPayload();
+  return typeof payload?.sub === 'string' ? payload.sub : null;
 }
