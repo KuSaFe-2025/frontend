@@ -44,7 +44,7 @@ export const LoginPage = () => {
       setAccessToken(token);
 
       // можно поменять куда редиректить
-      navigate('/quizes');
+      navigate('/games');
     } catch (e: any) {
       console.error(e);
       alert('Ошибка: ' + (e?.response?.data ?? e?.message ?? 'unknown'));
