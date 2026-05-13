@@ -1,5 +1,4 @@
 import styles from './About.module.scss';
-import { Header } from '@/components/Header';
 
 export const AboutPage = () => {
   return (
