@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import styles from './Quiz.module.scss';
 import { api, getAccessToken } from '@/shared/lib';
 import { LeaderboardCard } from '@/components/LeaderboardCard/LeaderboardCard';
+import { toaster } from '@/components/ui/toaster';
 
 type TaskTypeCount = { type: number; count: number };
 type DetailsTab = 'attempts' | 'reviews';
@@ -144,6 +145,7 @@ export const QuizPage = () => {
   const [attemptSort, setAttemptSort] = useState('date_desc');
   const [reviewSort, setReviewSort] = useState('new');
   const [completedOnly, setCompletedOnly] = useState(false);
+  const moderationToastIdRef = useRef<string | undefined>(undefined);
 
   const bg = useMemo(() => buildGradient(game?.themeColor), [game?.themeColor]);
   const description = game?.description?.trim();
@@ -209,14 +211,35 @@ export const QuizPage = () => {
   };
 
   const submitForVerification = async () => {
-    if (!game?.canEdit) return;
+    if (!game?.canEdit || submitting) return;
     try {
       setSubmitting(true);
+      moderationToastIdRef.current = toaster.create({
+        title: 'AI-модерация запущена',
+        description: 'Локальный AI проверяет игру. Это может занять немного времени.',
+        type: 'loading',
+        closable: false,
+      });
       await api.post(`/v1/my/games/${game.id}/submit-for-verification`, {});
       await loadGame();
+      toaster.create({
+        title: 'Готово',
+        description: 'Проверка игры завершена.',
+        type: 'success',
+        closable: true,
+      });
     } catch (e: any) {
-      alert(String(e?.response?.data ?? e?.message ?? 'Не удалось отправить игру на проверку'));
+      toaster.create({
+        title: 'Ошибка',
+        description: String(e?.response?.data ?? e?.message ?? 'Не удалось отправить игру на проверку'),
+        type: 'error',
+        closable: true,
+      });
     } finally {
+      if (moderationToastIdRef.current) {
+        toaster.dismiss(moderationToastIdRef.current);
+        moderationToastIdRef.current = undefined;
+      }
       setSubmitting(false);
     }
   };
@@ -309,7 +332,21 @@ export const QuizPage = () => {
                 {game.canEdit && game.status !== 1 && game.status !== 2 && (
                   <>
                     <button className={styles.backBtn} onClick={() => navigate('/my-games')}>Открыть кабинет автора</button>
-                    <button className={styles.backBtn} disabled={submitting} onClick={submitForVerification}>Отправить на проверку</button>
+                    <button
+                      data-testid="game-submit-verification"
+                      className={`${styles.backBtn} ${submitting ? styles.loadingButton : ''}`}
+                      disabled={submitting}
+                      onClick={submitForVerification}
+                      type="button"
+                    >
+                      {submitting && <span className={styles.buttonSpinner} aria-hidden="true" />}
+                      {submitting ? 'AI проверяет...' : 'Отправить на проверку'}
+                    </button>
+                    {submitting && (
+                      <div data-testid="game-moderation-progress" className={styles.moderationProgress} aria-label="AI-модерация выполняется">
+                        <span />
+                      </div>
+                    )}
                   </>
                 )}
               </div>
