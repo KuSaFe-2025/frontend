@@ -54,6 +54,31 @@
   gap: 8px;
 }
 
+.detailsControls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.checkLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  color: rgba(15, 23, 42, 0.68);
+  font-size: 14px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.checkLabel input {
+  width: 16px;
+  height: 16px;
+  accent-color: #7c3aed;
+}
+
 .detailsTab,
 .detailsTabActive,
 .sortSelect {
@@ -77,7 +102,10 @@
 
 .sortSelect {
   height: 42px;
+  width: 190px;
   padding: 0 12px;
+  font-size: 14px;
+  line-height: 1;
 }
 
 .table {

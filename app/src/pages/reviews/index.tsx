@@ -123,16 +123,22 @@ export const ReviewsPage = () => {
               <article className={styles.card} key={review.id}>
                 <div className={styles.cardTop}>
                   <div>
-                    <div className={styles.author}>{review.displayName}</div>
+                    <div className={styles.authorLine}>
+                      <span className={styles.author}>{review.displayName}</span>
+                      {review.gameId && review.gameTitle && (
+                        <>
+                          <span className={styles.dot}>·</span>
+                          <span className={styles.gameMention}>отзыв к игре: </span>
+                          <button className={styles.gameLink} type="button" onClick={() => navigate(`/game/${review.gameId}`)}>
+                            {review.gameTitle}
+                          </button>
+                        </>
+                      )}
+                    </div>
                     <div className={styles.meta}>{new Date(review.createdAtUtc).toLocaleString('ru-RU')}</div>
                   </div>
                   <div className={styles.rating}>{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</div>
                 </div>
-                {review.gameId && review.gameTitle && (
-                  <button className={styles.gameLink} type="button" onClick={() => navigate(`/game/${review.gameId}`)}>
-                    {review.gameTitle}
-                  </button>
-                )}
                 <p>{review.text}</p>
                 {review.canDelete && (
                   <button className={styles.deleteBtn} disabled={busy} type="button" onClick={() => deleteReview(review.id)}>

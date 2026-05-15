@@ -141,6 +141,10 @@ function normalizeHex(input: string) {
   return s.startsWith('#') ? s.toUpperCase() : `#${s.toUpperCase()}`;
 }
 
+function isValidHexColor(input?: string | null) {
+  return /^#[0-9A-F]{6}$/i.test(normalizeHex(input ?? ''));
+}
+
 function taskTypeLabel(type: number) {
   return ['Викторина', 'Верно/неверно', 'Порядок', 'Открытый ответ', 'Опрос', 'Множественный выбор'][type] ?? 'Задача';
 }
@@ -261,6 +265,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
   const [verifiedEditAcknowledged, setVerifiedEditAcknowledged] = useState(false);
   const [verifiedEditDialogOpen, setVerifiedEditDialogOpen] = useState(false);
   const pendingVerifiedActionRef = useRef<(() => void) | null>(null);
+  const colorInputRef = useRef<HTMLInputElement | null>(null);
 
   const [gameForm, setGameForm] = useState<GameUpsertRequest>({
     title: '',
@@ -830,10 +835,37 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
         </div>
         <div className={styles.col}>
           <label className={styles.label}>Цвет темы</label>
-          <input data-testid="game-theme-color-input" className={styles.input} value={gameForm.themeColor ?? ''} onChange={e => {
-            const value = e.target.value;
-            updateGameForm(p => ({ ...p, themeColor: value }));
-          }} />
+          <div className={styles.colorPicker}>
+            <button
+              className={styles.colorSwatch}
+              style={{ backgroundColor: isValidHexColor(gameForm.themeColor) ? normalizeHex(gameForm.themeColor ?? '') : '#7C3AED' }}
+              type="button"
+              onClick={() => colorInputRef.current?.click()}
+              aria-label="Выбрать цвет темы"
+            />
+            <div className={styles.colorText}>
+              <div className={styles.colorTitle}>Текущий цвет</div>
+              <input
+                data-testid="game-theme-color-input"
+                className={styles.colorHexInput}
+                value={gameForm.themeColor ?? ''}
+                onChange={e => {
+                  const value = e.target.value;
+                  updateGameForm(p => ({ ...p, themeColor: value }));
+                }}
+                placeholder="#7C3AED"
+              />
+            </div>
+            <input
+              ref={colorInputRef}
+              className={styles.nativeColorInput}
+              type="color"
+              value={isValidHexColor(gameForm.themeColor) ? normalizeHex(gameForm.themeColor ?? '') : '#7C3AED'}
+              onChange={e => updateGameForm(p => ({ ...p, themeColor: e.target.value.toUpperCase() }))}
+              aria-hidden="true"
+              tabIndex={-1}
+            />
+          </div>
         </div>
         <div className={styles.col}>
           <label className={styles.label}>Статус</label>

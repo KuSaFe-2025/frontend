@@ -143,6 +143,7 @@ export const QuizPage = () => {
   const [reviews, setReviews] = useState<Page<ReviewItem> | null>(null);
   const [attemptSort, setAttemptSort] = useState('date_desc');
   const [reviewSort, setReviewSort] = useState('new');
+  const [completedOnly, setCompletedOnly] = useState(false);
 
   const bg = useMemo(() => buildGradient(game?.themeColor), [game?.themeColor]);
   const description = game?.description?.trim();
@@ -168,7 +169,7 @@ export const QuizPage = () => {
   const loadAttempts = async (skip = 0) => {
     if (!gameId) return;
     const res = await api.get<Page<AttemptItem>>(`/v1/games/${gameId}/attempts`, {
-      params: { skip, take: 10, sort: attemptSort },
+      params: { skip, take: 10, sort: attemptSort, completedOnly },
     });
     setAttempts(res.data);
   };
@@ -187,7 +188,7 @@ export const QuizPage = () => {
 
   useEffect(() => {
     void loadAttempts(0).catch(() => setAttempts(null));
-  }, [gameId, attemptSort]);
+  }, [gameId, attemptSort, completedOnly]);
 
   useEffect(() => {
     void loadReviews(0).catch(() => setReviews(null));
@@ -326,14 +327,20 @@ export const QuizPage = () => {
                 </button>
               </div>
               {detailsTab === 'attempts' ? (
-                <select className={styles.sortSelect} value={attemptSort} onChange={e => setAttemptSort(e.target.value)}>
-                  <option value="date_desc">Сначала новые</option>
-                  <option value="date_asc">Сначала старые</option>
-                  <option value="score_desc">Баллы по убыванию</option>
-                  <option value="score_asc">Баллы по возрастанию</option>
-                  <option value="time_asc">Время быстрее</option>
-                  <option value="time_desc">Время дольше</option>
-                </select>
+                <div className={styles.detailsControls}>
+                  <label className={styles.checkLabel}>
+                    <input type="checkbox" checked={completedOnly} onChange={e => setCompletedOnly(e.target.checked)} />
+                    Только полные прохождения
+                  </label>
+                  <select className={styles.sortSelect} value={attemptSort} onChange={e => setAttemptSort(e.target.value)}>
+                    <option value="date_desc">Сначала новые</option>
+                    <option value="date_asc">Сначала старые</option>
+                    <option value="score_desc">Баллы по убыванию</option>
+                    <option value="score_asc">Баллы по возрастанию</option>
+                    <option value="time_asc">Время быстрее</option>
+                    <option value="time_desc">Время дольше</option>
+                  </select>
+                </div>
               ) : (
                 <select className={styles.sortSelect} value={reviewSort} onChange={e => setReviewSort(e.target.value)}>
                   <option value="new">Сначала новые</option>
