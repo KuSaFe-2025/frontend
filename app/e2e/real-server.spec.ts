@@ -73,19 +73,19 @@ async function seedBrowserAuth(page: Page, token: string) {
 
 async function loginViaUi(page: Page, email: string, pwd = password) {
   await page.goto('/login');
-  await page.locator('input').nth(0).fill(email);
-  await page.locator('input[type="password"]').fill(pwd);
-  await page.getByRole('button', { name: 'Войти', exact: true }).click();
+  await page.getByTestId('email-input').fill(email);
+  await page.getByTestId('password-input').fill(pwd);
+  await page.getByTestId('auth-submit').click();
   await expect(page).toHaveURL(/\/games/);
 }
 
 async function registerViaUi(page: Page, email: string, displayName: string, pwd = password) {
   await page.goto('/login');
   await page.getByRole('tab').nth(1).click();
-  await page.locator('input').nth(0).fill(displayName);
-  await page.locator('input').nth(1).fill(email);
-  await page.locator('input[type="password"]').fill(pwd);
-  await page.getByRole('button', { name: 'Создать аккаунт' }).click();
+  await page.getByTestId('display-name-input').fill(displayName);
+  await page.getByTestId('email-input').fill(email);
+  await page.getByTestId('password-input').fill(pwd);
+  await page.getByTestId('auth-submit').click();
 }
 
 async function createGameViaApi(token: string, title: string, description = 'Created by real-stack tests') {
@@ -202,6 +202,19 @@ test.beforeEach(async () => {
   await resetAndSeed();
 });
 
+test('login email input keeps manually typed text stable', async ({ page }) => {
+  await page.goto('/login');
+  const emailInput = page.getByTestId('email-input');
+
+  await emailInput.click();
+  await emailInput.pressSequentially('author@e2e.test', { delay: 5 });
+  await expect(emailInput).toHaveValue('author@e2e.test');
+
+  await emailInput.press('Control+A');
+  await emailInput.pressSequentially('player@e2e.test', { delay: 5 });
+  await expect(emailInput).toHaveValue('player@e2e.test');
+});
+
 test('real auth, catalog, game details and author moderation flow', async ({ page }) => {
   await loginViaUi(page, 'author@e2e.test');
 
@@ -228,11 +241,11 @@ test('real registration, duplicate registration and refresh-token interceptor', 
 
   await page.goto('/login');
   await page.getByRole('tab').nth(1).click();
-  await page.locator('input').nth(0).fill('Registered User');
-  await page.locator('input').nth(1).fill(email);
-  await page.locator('input[type="password"]').fill(password);
+  await page.getByTestId('display-name-input').fill('Registered User');
+  await page.getByTestId('email-input').fill(email);
+  await page.getByTestId('password-input').fill(password);
   const duplicateDialog = page.waitForEvent('dialog');
-  await page.getByRole('button', { name: 'Создать аккаунт' }).click();
+  await page.getByTestId('auth-submit').click();
   const dialog = await duplicateDialog;
   expect(dialog.message()).toContain('Email already registered');
   await dialog.dismiss();
@@ -361,7 +374,7 @@ test('real admin guard and dashboard status controls work through UI', async ({ 
   const player = await login('player@e2e.test');
   await seedBrowserAuth(page, player.accessToken);
   await page.goto('/admin');
-  await expect(page).toHaveURL('http://127.0.0.1:5173/');
+  await expect(page).toHaveURL('http://127.0.0.1:5174/');
 
   const author = await login('author@e2e.test');
   const admin = await login('admin@e2e.test');
