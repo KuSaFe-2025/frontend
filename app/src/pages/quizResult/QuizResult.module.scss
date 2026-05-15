@@ -112,3 +112,59 @@
 .secondaryBtn {
   background: #fff;
 }
+
+.reviewBox {
+  margin-top: 20px;
+  display: grid;
+  gap: 10px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.reviewTitle {
+  font-weight: 900;
+  font-size: 17px;
+}
+
+.stars {
+  display: flex;
+  gap: 4px;
+}
+
+.star,
+.starActive {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-size: 28px;
+  line-height: 1;
+  color: #cbd5e1;
+}
+
+.starActive {
+  color: #f59e0b;
+}
+
+.textarea {
+  width: 100%;
+  min-height: 96px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  padding: 12px;
+  resize: vertical;
+  font: inherit;
+}
+
+.reviewErr,
+.reviewOk {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.reviewErr {
+  color: #991b1b;
+}
+
+.reviewOk {
+  color: #166534;
+}

@@ -7,6 +7,32 @@ import { api, getAccessToken } from '@/shared/lib';
 import { LeaderboardCard } from '@/components/LeaderboardCard/LeaderboardCard';
 
 type TaskTypeCount = { type: number; count: number };
+type DetailsTab = 'attempts' | 'reviews';
+
+type Page<T> = {
+  items: T[];
+  total: number;
+  skip: number;
+  take: number;
+  hasMore: boolean;
+};
+
+type AttemptItem = {
+  attemptId: string;
+  displayName: string;
+  totalTimeMs: number;
+  finishedAtUtc: string;
+  score: number;
+  maxScore: number;
+};
+
+type ReviewItem = {
+  id: string;
+  displayName: string;
+  rating: number;
+  text: string;
+  createdAtUtc: string;
+};
 
 type GameMeta = {
   id: string;
@@ -49,7 +75,7 @@ function buildGradient(themeColor?: string | null) {
 }
 
 function taskTypeLabel(type: number) {
-  return ['Викторина', 'Верно/неверно', 'Порядок', 'Открытый ответ', 'Опрос'][type] ?? 'Задача';
+  return ['Викторина', 'Верно/неверно', 'Порядок', 'Открытый ответ', 'Опрос', 'Множественный выбор'][type] ?? 'Задача';
 }
 
 function statusLabel(status: number) {
@@ -112,6 +138,11 @@ export const QuizPage = () => {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [detailsTab, setDetailsTab] = useState<DetailsTab>('attempts');
+  const [attempts, setAttempts] = useState<Page<AttemptItem> | null>(null);
+  const [reviews, setReviews] = useState<Page<ReviewItem> | null>(null);
+  const [attemptSort, setAttemptSort] = useState('date_desc');
+  const [reviewSort, setReviewSort] = useState('new');
 
   const bg = useMemo(() => buildGradient(game?.themeColor), [game?.themeColor]);
   const description = game?.description?.trim();
@@ -134,9 +165,33 @@ export const QuizPage = () => {
     }
   };
 
+  const loadAttempts = async (skip = 0) => {
+    if (!gameId) return;
+    const res = await api.get<Page<AttemptItem>>(`/v1/games/${gameId}/attempts`, {
+      params: { skip, take: 10, sort: attemptSort },
+    });
+    setAttempts(res.data);
+  };
+
+  const loadReviews = async (skip = 0) => {
+    if (!gameId) return;
+    const res = await api.get<Page<ReviewItem>>(`/v1/games/${gameId}/reviews`, {
+      params: { skip, take: 10, sort: reviewSort },
+    });
+    setReviews(res.data);
+  };
+
   useEffect(() => {
     void loadGame();
   }, [gameId]);
+
+  useEffect(() => {
+    void loadAttempts(0).catch(() => setAttempts(null));
+  }, [gameId, attemptSort]);
+
+  useEffect(() => {
+    void loadReviews(0).catch(() => setReviews(null));
+  }, [gameId, reviewSort]);
 
   const start = async () => {
     if (!getAccessToken()) {
@@ -260,6 +315,84 @@ export const QuizPage = () => {
             </section>
             <LeaderboardCard gameId={game.id} />
           </div>
+          <section className={styles.detailsPanel}>
+            <div className={styles.detailsHead}>
+              <div className={styles.detailsTabs} role="tablist">
+                <button className={detailsTab === 'attempts' ? styles.detailsTabActive : styles.detailsTab} onClick={() => setDetailsTab('attempts')} type="button">
+                  Все прохождения
+                </button>
+                <button className={detailsTab === 'reviews' ? styles.detailsTabActive : styles.detailsTab} onClick={() => setDetailsTab('reviews')} type="button">
+                  Отзывы
+                </button>
+              </div>
+              {detailsTab === 'attempts' ? (
+                <select className={styles.sortSelect} value={attemptSort} onChange={e => setAttemptSort(e.target.value)}>
+                  <option value="date_desc">Сначала новые</option>
+                  <option value="date_asc">Сначала старые</option>
+                  <option value="score_desc">Баллы по убыванию</option>
+                  <option value="score_asc">Баллы по возрастанию</option>
+                  <option value="time_asc">Время быстрее</option>
+                  <option value="time_desc">Время дольше</option>
+                </select>
+              ) : (
+                <select className={styles.sortSelect} value={reviewSort} onChange={e => setReviewSort(e.target.value)}>
+                  <option value="new">Сначала новые</option>
+                  <option value="rating_desc">Высокая оценка</option>
+                  <option value="rating_asc">Низкая оценка</option>
+                </select>
+              )}
+            </div>
+
+            {detailsTab === 'attempts' ? (
+              <>
+                <div className={styles.table}>
+                  <div className={styles.tableHead}>
+                    <span>Игрок</span>
+                    <span>Время</span>
+                    <span>Дата</span>
+                    <span>Баллы</span>
+                  </div>
+                  {(attempts?.items ?? []).map(item => (
+                    <div className={styles.tableRow} key={item.attemptId}>
+                      <span>{item.displayName}</span>
+                      <span>{Math.round(item.totalTimeMs / 1000)} с</span>
+                      <span>{new Date(item.finishedAtUtc).toLocaleString('ru-RU')}</span>
+                      <span>{item.score} / {item.maxScore}</span>
+                    </div>
+                  ))}
+                </div>
+                {(attempts?.items.length ?? 0) === 0 && <div className={styles.emptyState}>Прохождений пока нет.</div>}
+                <div className={styles.pager}>
+                  <button className={styles.backBtn} disabled={!attempts || attempts.skip <= 0} onClick={() => loadAttempts(Math.max(0, (attempts?.skip ?? 0) - 10))}>Назад</button>
+                  <span>{attempts ? `${attempts.skip + (attempts.items.length ? 1 : 0)}-${attempts.skip + attempts.items.length} из ${attempts.total}` : '0 из 0'}</span>
+                  <button className={styles.backBtn} disabled={!attempts?.hasMore} onClick={() => loadAttempts((attempts?.skip ?? 0) + 10)}>Дальше</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className={styles.reviewsList}>
+                  {(reviews?.items ?? []).map(review => (
+                    <article className={styles.reviewCard} key={review.id}>
+                      <div className={styles.reviewTop}>
+                        <div>
+                          <b>{review.displayName}</b>
+                          <div>{new Date(review.createdAtUtc).toLocaleString('ru-RU')}</div>
+                        </div>
+                        <span>{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</span>
+                      </div>
+                      <p>{review.text}</p>
+                    </article>
+                  ))}
+                </div>
+                {(reviews?.items.length ?? 0) === 0 && <div className={styles.emptyState}>Отзывов пока нет.</div>}
+                <div className={styles.pager}>
+                  <button className={styles.backBtn} disabled={!reviews || reviews.skip <= 0} onClick={() => loadReviews(Math.max(0, (reviews?.skip ?? 0) - 10))}>Назад</button>
+                  <span>{reviews ? `${reviews.skip + (reviews.items.length ? 1 : 0)}-${reviews.skip + reviews.items.length} из ${reviews.total}` : '0 из 0'}</span>
+                  <button className={styles.backBtn} disabled={!reviews?.hasMore} onClick={() => loadReviews((reviews?.skip ?? 0) + 10)}>Дальше</button>
+                </div>
+              </>
+            )}
+          </section>
         </div>
       </main>
     </div>

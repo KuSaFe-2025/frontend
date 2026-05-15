@@ -154,6 +154,60 @@
   line-height: 1.55;
 }
 
+.sectionDivider {
+  width: 100%;
+  height: 1px;
+  margin: 54px 0 28px;
+  background: linear-gradient(90deg, transparent, rgba(37, 99, 235, 0.22), rgba(124, 58, 237, 0.24), transparent);
+}
+
+.featuredGame {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: center;
+  padding: 28px;
+  text-align: left;
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.09);
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.featuredKicker {
+  margin-bottom: 8px;
+  color: #5b21b6;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.featuredGame h2 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.15;
+}
+
+.featuredGame p {
+  max-width: 820px;
+  margin: 12px 0 0;
+  color: rgba(15, 23, 42, 0.7);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.featuredMeta {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: rgba(15, 23, 42, 0.66);
+  font-size: 14px;
+  font-weight: 800;
+}
+
 @media (max-width: 980px) {
   .featureGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -180,5 +234,10 @@
   .startBtn,
   .secondaryBtn {
     width: 100%;
+  }
+
+  .featuredGame {
+    grid-template-columns: 1fr;
+    padding: 20px;
   }
 }

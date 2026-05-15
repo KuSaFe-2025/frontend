@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import styles from './QuizResult.module.scss';
 import { LeaderboardCard } from '@/components/LeaderboardCard/LeaderboardCard';
+import { api, getAccessToken } from '@/shared/lib';
 
 type AnswerResponse = {
   finished: boolean;
@@ -23,6 +24,11 @@ export const QuizResultPage = () => {
   const gameId = params.gameId ?? params.quizId;
   const navigate = useNavigate();
   const [payload, setPayload] = useState<ResultPayload | null>(null);
+  const [rating, setRating] = useState(5);
+  const [reviewText, setReviewText] = useState('');
+  const [reviewSaved, setReviewSaved] = useState(false);
+  const [reviewBusy, setReviewBusy] = useState(false);
+  const [reviewErr, setReviewErr] = useState<string | null>(null);
 
   useEffect(() => {
     if (!gameId) return;
@@ -50,6 +56,29 @@ export const QuizResultPage = () => {
   const total = payload.finished.totalTasks;
   const answers = Array.from({ length: total }, (_, i) => payload.answers[i] ?? null);
 
+  const submitReview = async () => {
+    if (!getAccessToken()) {
+      navigate('/login');
+      return;
+    }
+    const text = reviewText.trim();
+    if (!text) {
+      setReviewErr('Введите текст отзыва.');
+      return;
+    }
+    setReviewBusy(true);
+    setReviewErr(null);
+    try {
+      await api.post(`/v1/games/${gameId}/reviews`, { rating, text });
+      setReviewSaved(true);
+      setReviewText('');
+    } catch (e: any) {
+      setReviewErr(String(e?.response?.data ?? e?.message ?? 'Не удалось сохранить отзыв'));
+    } finally {
+      setReviewBusy(false);
+    }
+  };
+
   return (
     <div className={styles.page}>
       <main className={styles.main}>
@@ -76,6 +105,23 @@ export const QuizResultPage = () => {
               <div className={styles.actions}>
                 <button className={styles.primaryBtn} onClick={() => navigate('/games')}>К играм</button>
                 <button className={styles.secondaryBtn} onClick={() => navigate(`/game/${gameId}`)}>На страницу игры</button>
+              </div>
+
+              <div className={styles.reviewBox}>
+                <div className={styles.reviewTitle}>Оставить отзыв</div>
+                <div className={styles.stars}>
+                  {[1, 2, 3, 4, 5].map(value => (
+                    <button key={value} className={value <= rating ? styles.starActive : styles.star} type="button" onClick={() => setRating(value)}>
+                      ★
+                    </button>
+                  ))}
+                </div>
+                <textarea className={styles.textarea} value={reviewText} onChange={e => setReviewText(e.target.value)} placeholder="Ваше впечатление от игры" />
+                {reviewErr && <div className={styles.reviewErr}>{reviewErr}</div>}
+                {reviewSaved && <div className={styles.reviewOk}>Отзыв сохранен.</div>}
+                <button className={styles.primaryBtn} disabled={reviewBusy || reviewSaved} onClick={submitReview} type="button">
+                  {reviewSaved ? 'Отзыв отправлен' : 'Оставить отзыв'}
+                </button>
               </div>
             </section>
             <LeaderboardCard gameId={gameId} showMyPlaceIfPerfect={isPerfect} />

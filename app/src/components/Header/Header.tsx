@@ -41,6 +41,12 @@ export const Header = ({ onAuthClick }: HeaderProps) => {
 
           <span className={styles.sep} />
 
+          <button className={styles.navLink} onClick={() => navigate('/reviews')}>
+            Отзывы
+          </button>
+
+          <span className={styles.sep} />
+
           <button className={styles.navLink} onClick={() => navigate('/games')}>
             Игры
           </button>

@@ -132,7 +132,15 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 10px;
   margin-bottom: 10px;
+}
+
+.headActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
 .blockTitle {
@@ -198,7 +206,10 @@
 .secondary,
 .danger,
 .small,
-.smallDanger {
+.smallDanger,
+.aiButton,
+.aiSolid,
+.inlineDanger {
   border-radius: 12px;
   padding: 10px 12px;
   font-weight: 800;
@@ -217,11 +228,47 @@
   background: rgba(255, 255, 255, 0.75);
 }
 
+.aiActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.aiButton {
+  background: rgba(124, 58, 237, 0.08);
+  border-color: rgba(124, 58, 237, 0.18);
+  color: #5b21b6;
+}
+
+.aiSolid {
+  background: #6d28d9;
+  border-color: rgba(109, 40, 217, 0.35);
+  color: #ffffff;
+}
+
+.aiWorking {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(124, 58, 237, 0.16);
+  background: rgba(124, 58, 237, 0.08);
+  color: #5b21b6;
+  font-weight: 900;
+}
+
 .danger,
-.smallDanger {
+.smallDanger,
+.inlineDanger {
   background: rgba(239, 68, 68, 0.08);
   border-color: rgba(239, 68, 68, 0.2);
   color: #991b1b;
+}
+
+.inlineDanger {
+  min-height: 24px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
 }
 
 .questions {
@@ -508,6 +555,53 @@
   justify-content: flex-end;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.reviewsList {
+  display: grid;
+  gap: 10px;
+}
+
+.reviewCard {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(17, 24, 39, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.reviewTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  color: rgba(17, 24, 39, 0.65);
+  font-size: 13px;
+}
+
+.reviewTop span {
+  color: #f59e0b;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.reviewCard p {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: rgba(17, 24, 39, 0.78);
+  line-height: 1.45;
+}
+
+.pager {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: rgba(17, 24, 39, 0.68);
+  font-weight: 800;
 }
 
 @media (max-width: 900px) {

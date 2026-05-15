@@ -12,6 +12,7 @@ import {
   QuizPage,
   QuizPlayPage,
   QuizResultPage,
+  ReviewsPage,
 } from '@/pages';
 import '../shared/App.scss';
 
@@ -23,6 +24,7 @@ function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/about" element={<AboutPage />} />
+        <Route path="/reviews" element={<ReviewsPage />} />
         <Route path="/games" element={<Quizes />} />
         <Route path="/quizes" element={<Quizes />} />
         <Route path="/game/:gameId" element={<QuizPage />} />
