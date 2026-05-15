@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from './AdminDashboard.module.scss';
 import { api } from '@/shared/lib';
+import { toaster } from '@/components/ui/toaster';
 
 type DashboardMode = 'mine' | 'admin';
 type ActiveTab = 'info' | 'tasks' | 'stats' | 'reviews';
@@ -253,7 +254,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
   const [loadingList, setLoadingList] = useState(false);
   const [loadingGame, setLoadingGame] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [moderationBusy, setModerationBusy] = useState(false);
   const [creatingNew, setCreatingNew] = useState(false);
   const [taskFormOpen, setTaskFormOpen] = useState(false);
   const [taskEditId, setTaskEditId] = useState<string | null>(null);
@@ -266,6 +267,8 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
   const [verifiedEditDialogOpen, setVerifiedEditDialogOpen] = useState(false);
   const pendingVerifiedActionRef = useRef<(() => void) | null>(null);
   const colorInputRef = useRef<HTMLInputElement | null>(null);
+  const aiToastIdRef = useRef<string | undefined>(undefined);
+  const moderationToastIdRef = useRef<string | undefined>(undefined);
 
   const [gameForm, setGameForm] = useState<GameUpsertRequest>({
     title: '',
@@ -274,6 +277,47 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
     themeColor: '#7C3AED',
   });
   const [taskForm, setTaskForm] = useState<TaskUpsertRequest>(defaultTaskForm(0));
+
+  const showError = useCallback((message: string) => {
+    toaster.create({
+      title: 'Ошибка',
+      description: message,
+      type: 'error',
+      closable: true,
+    });
+  }, []);
+
+  const showSuccess = useCallback((message: string) => {
+    toaster.create({
+      title: 'Готово',
+      description: message,
+      type: 'success',
+      closable: true,
+    });
+  }, []);
+
+  const setErr = useCallback((message: string | null) => {
+    if (message) showError(message);
+  }, [showError]);
+
+  const startAiWork = useCallback((key: string, description: string) => {
+    if (aiToastIdRef.current) toaster.dismiss(aiToastIdRef.current);
+    aiToastIdRef.current = toaster.create({
+      title: 'AI работает',
+      description,
+      type: 'loading',
+      closable: false,
+    });
+    setAiBusy(key);
+  }, []);
+
+  const finishAiWork = useCallback(() => {
+    if (aiToastIdRef.current) {
+      toaster.dismiss(aiToastIdRef.current);
+      aiToastIdRef.current = undefined;
+    }
+    setAiBusy(null);
+  }, []);
 
   const refreshList = async () => {
     setLoadingList(true);
@@ -442,17 +486,28 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
   };
 
   const submitForVerification = async () => {
-    if (!game || mode !== 'mine') return;
-    setBusy(true);
+    if (!game || mode !== 'mine' || moderationBusy) return;
+    setModerationBusy(true);
     setErr(null);
+    moderationToastIdRef.current = toaster.create({
+      title: 'AI-модерация запущена',
+      description: 'Локальный AI проверяет игру. Это может занять немного времени.',
+      type: 'loading',
+      closable: false,
+    });
     try {
       await api.post(`${basePath}/${game.id}/submit-for-verification`, {});
       await loadGame(game.id);
       await refreshList();
+      showSuccess('Проверка игры завершена.');
     } catch (e: any) {
       setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось отправить игру на проверку'));
     } finally {
-      setBusy(false);
+      if (moderationToastIdRef.current) {
+        toaster.dismiss(moderationToastIdRef.current);
+        moderationToastIdRef.current = undefined;
+      }
+      setModerationBusy(false);
     }
   };
 
@@ -706,7 +761,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
     if (!game || !canUseAi) return;
     const source = field === 'description' ? gameForm.description ?? '' : taskForm.text;
     if (!hasTwoWords(source)) return;
-    setAiBusy(`${field}-${modeName}`);
+    startAiWork(`${field}-${modeName}`, field === 'description' ? 'Переписываю описание игры.' : 'Переписываю текст задачи.');
     setErr(null);
     try {
       const res = await api.post(`${basePath}/${game.id}/ai/rewrite/stream`, {
@@ -717,16 +772,17 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
       const next = String(res.data ?? '').trim();
       if (field === 'description') updateGameForm(p => ({ ...p, description: next }));
       else updateTaskForm(p => ({ ...p, text: next }));
+      showSuccess('AI обновил текст.');
     } catch (e: any) {
       setErr(String(e?.response?.data ?? e?.message ?? 'AI не смог переписать текст'));
     } finally {
-      setAiBusy(null);
+      finishAiWork();
     }
   };
 
   const suggestOption = async () => {
     if (!game || !canUseAi) return;
-    setAiBusy('option');
+    startAiWork('option', 'Придумываю новый неправильный вариант ответа.');
     setErr(null);
     try {
       const res = await api.post<{ text: string }>(`${basePath}/${game.id}/ai/suggest-option`, {
@@ -734,16 +790,17 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
         task: taskForm,
       });
       updateTaskForm(p => ({ ...p, options: [...p.options, res.data.text] }));
+      showSuccess('AI добавил новый вариант ответа.');
     } catch (e: any) {
       setErr(String(e?.response?.data ?? e?.message ?? 'AI не смог придумать вариант'));
     } finally {
-      setAiBusy(null);
+      finishAiWork();
     }
   };
 
   const suggestTask = async () => {
     if (!game || !canUseAi) return;
-    setAiBusy('task');
+    startAiWork('task', 'Придумываю новую задачу для игры.');
     setErr(null);
     try {
       const res = await api.post<AiTaskSuggestion>(`${basePath}/${game.id}/ai/suggest-task`, {
@@ -773,10 +830,11 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
         correctOptionIndexes: suggestion.correctOptionIndexes ?? [],
       });
       setTaskFormOpen(true);
+      showSuccess('AI подготовил новую задачу.');
     } catch (e: any) {
       setErr(String(e?.response?.data ?? e?.message ?? 'AI не смог придумать задачу'));
     } finally {
-      setAiBusy(null);
+      finishAiWork();
     }
   };
 
@@ -869,7 +927,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
         </div>
         <div className={styles.col}>
           <label className={styles.label}>Статус</label>
-          <div data-testid="game-status" className={styles.readonly}>{game ? statusLabel(game.status) : 'Новая игра'}</div>
+          <div data-testid="game-status" className={`${styles.readonly} ${styles.statusReadonly}`}>{game ? statusLabel(game.status) : 'Новая игра'}</div>
         </div>
       </div>
 
@@ -911,7 +969,16 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
             <button data-testid="save-game" className={styles.primary} disabled={busy || !game} onClick={saveGame} type="button">Сохранить</button>
             <button data-testid="delete-game" className={styles.danger} disabled={busy || !game} onClick={deleteGame} type="button">Удалить</button>
             {mode === 'mine' && game && game.status !== 1 && game.status !== 2 && (
-              <button data-testid="submit-verification" className={styles.secondary} disabled={busy} onClick={submitForVerification} type="button">{busy ? 'Проверка...' : 'На проверку'}</button>
+              <button
+                data-testid="submit-verification"
+                className={`${styles.secondary} ${moderationBusy ? styles.loadingButton : ''}`}
+                disabled={busy || moderationBusy}
+                onClick={submitForVerification}
+                type="button"
+              >
+                {moderationBusy && <span className={styles.buttonSpinner} aria-hidden="true" />}
+                {moderationBusy ? 'AI проверяет...' : 'На проверку'}
+              </button>
             )}
             {mode === 'admin' && game && (
               <>
@@ -923,6 +990,11 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
           </>
         )}
       </div>
+      {moderationBusy && (
+        <div data-testid="moderation-progress" className={styles.moderationProgress} aria-label="AI-модерация выполняется">
+          <span />
+        </div>
+      )}
     </div>
   );
 
@@ -1232,7 +1304,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
         {activeTab === 'reviews' && reviewsTab}
       </div>
     );
-  }, [activeTab, aiBusy, busy, creatingNew, game, gameForm, loadingGame, mode, openAnswers, reviews, reviewSort, stats, tabs, taskEditId, taskForm, taskFormOpen]);
+  }, [activeTab, aiBusy, busy, creatingNew, game, gameForm, loadingGame, mode, moderationBusy, openAnswers, reviews, reviewSort, stats, tabs, taskEditId, taskForm, taskFormOpen]);
 
   return (
     <div className={styles.page}>
@@ -1252,8 +1324,6 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
               ))}
             </div>
           )}
-          {err && <div data-testid="dashboard-error" className={styles.error}>{err}</div>}
-          {aiBusy && <div data-testid="ai-working" className={styles.aiWorking}>AI работает...</div>}
         </aside>
         <main className={styles.right}>{right}</main>
       </div>

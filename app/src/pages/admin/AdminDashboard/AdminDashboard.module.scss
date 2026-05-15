@@ -532,6 +532,61 @@
   color: rgba(17, 24, 39, 0.78);
 }
 
+.statusReadonly {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+}
+
+.loadingButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.buttonSpinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid rgba(124, 58, 237, 0.22);
+  border-top-color: #7c3aed;
+  animation: spin 0.75s linear infinite;
+}
+
+.moderationProgress {
+  margin-top: 10px;
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(124, 58, 237, 0.12);
+}
+
+.moderationProgress span {
+  display: block;
+  width: 34%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(124, 58, 237, 0.2), #7c3aed, rgba(124, 58, 237, 0.2));
+  animation: progressSweep 1.15s ease-in-out infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes progressSweep {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  100% {
+    transform: translateX(310%);
+  }
+}
+
 .bar {
   margin-top: 8px;
   width: 100%;
