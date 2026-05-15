@@ -119,6 +119,58 @@ function statusLabel(status: number) {
   return ['Черновик', 'Проверена', 'На проверке', 'Отклонена'][status] ?? 'Черновик';
 }
 
+function localizeModerationDecision(decision?: string | null) {
+  if (!decision) return 'Проверка ещё не выполнялась';
+
+  const reasonMatch = decision.match(/Reason:\s*(.+)$/i);
+  const reason = localizeModerationReason(reasonMatch?.[1]?.trim());
+
+  if (/Rejected by local AI moderation/i.test(decision)) {
+    return reason
+      ? `Отклонено локальной AI-модерацией: ${reason}`
+      : 'Отклонено локальной AI-модерацией.';
+  }
+
+  if (/Approved by local AI moderation/i.test(decision)) {
+    return 'Одобрено локальной AI-модерацией.';
+  }
+
+  if (/Rejected by deterministic E2E moderation/i.test(decision)) {
+    return reason
+      ? `Отклонено тестовой модерацией: ${reason}`
+      : 'Отклонено тестовой модерацией.';
+  }
+
+  if (/Approved by deterministic E2E moderation/i.test(decision)) {
+    return 'Одобрено тестовой модерацией.';
+  }
+
+  return decision
+    .replace(/\bYES\b/g, 'да')
+    .replace(/\bNO\b/g, 'нет')
+    .replace(/\bReason:\s*/i, 'Причина: ');
+}
+
+function localizeModerationReason(reason?: string) {
+  if (!reason) return '';
+
+  const normalized = reason.replace(/\s+/g, ' ').trim();
+  const knownReasons: Record<string, string> = {
+    'This content contains hate speech and profanity that is not suitable for a public educational platform.':
+      'Контент содержит ненавистнические высказывания и ненормативную лексику, поэтому не подходит для публичной образовательной платформы.',
+    'Content contains a blocked word.':
+      'Контент содержит запрещённое слово.',
+    'The content did not meet KuSaFe safety rules.':
+      'Контент не соответствует правилам безопасности KuSaFe.',
+  };
+
+  return knownReasons[normalized] ?? normalized;
+}
+
+function moderationDateLabel(value?: string | null) {
+  return value ? new Date(value).toLocaleString('ru-RU') : '';
+}
+
 function pct(value: number) {
   return `${Math.round(value * 100)}%`;
 }
@@ -624,8 +676,8 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
           <div className={styles.row}>
             <label className={styles.label}>Модерация</label>
             <div className={styles.readonly}>
-              {game.moderationDecision || 'Проверка ещё не выполнялась'}
-              {game.lastModeratedAtUtc ? ` · ${new Date(game.lastModeratedAtUtc).toLocaleString()}` : ''}
+              {localizeModerationDecision(game.moderationDecision)}
+              {game.lastModeratedAtUtc ? ` · ${moderationDateLabel(game.lastModeratedAtUtc)}` : ''}
               {game.moderationYesVotes || game.moderationNoVotes ? ` · да ${game.moderationYesVotes} / нет ${game.moderationNoVotes}` : ''}
             </div>
           </div>

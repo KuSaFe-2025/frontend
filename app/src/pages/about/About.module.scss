@@ -1,10 +1,46 @@
 .page {
+  position: relative;
+  overflow: hidden;
   background: #ffffff;
   color: #111827;
   min-height: calc(100vh - 1px);
 }
 
+.page::before,
+.page::after {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.78;
+  filter: blur(34px);
+}
+
+.page::before {
+  top: -18%;
+  left: -28%;
+  width: 72vw;
+  height: 78vh;
+  background:
+    radial-gradient(circle at 42% 28%, rgba(59, 130, 246, 0.18), transparent 48%),
+    radial-gradient(circle at 62% 62%, rgba(124, 58, 237, 0.13), transparent 62%),
+    radial-gradient(circle at 28% 82%, rgba(14, 165, 233, 0.08), transparent 68%);
+}
+
+.page::after {
+  right: -30%;
+  bottom: -24%;
+  width: 76vw;
+  height: 84vh;
+  background:
+    radial-gradient(circle at 56% 68%, rgba(124, 58, 237, 0.17), transparent 56%),
+    radial-gradient(circle at 32% 42%, rgba(37, 99, 235, 0.11), transparent 62%),
+    radial-gradient(circle at 78% 26%, rgba(168, 85, 247, 0.08), transparent 68%);
+}
+
 .container {
+  position: relative;
+  z-index: 1;
   max-width: 1100px;
   margin: 0 auto;
   padding: 36px 20px 40px;
