@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { type FormEvent, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styles from './Login.module.scss';
 import { api, setAccessToken } from '@/shared/lib';
@@ -15,27 +15,26 @@ type AuthResponse = {
 
 export const LoginPage = () => {
   const navigate = useNavigate();
-
   const [mode, setMode] = useState<Mode>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
 
   const title = useMemo(() => (mode === 'login' ? 'Авторизация' : 'Регистрация'), [mode]);
 
-  const submit = async () => {
-    if (!email.trim()) return alert('Введите e-mail');
+  const submit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
+    const email = String(formData.get('email') ?? '').trim();
+    const password = String(formData.get('password') ?? '');
+    const displayName = String(formData.get('displayName') ?? '').trim();
+
+    if (!email) return alert('Введите e-mail');
     if (!password.trim()) return alert('Введите пароль');
-    if (mode === 'register' && !displayName.trim()) return alert('Введите отображаемый ник');
+    if (mode === 'register' && !displayName) return alert('Введите отображаемый ник');
 
     try {
       const res = mode === 'login'
-        ? await api.post<AuthResponse>('/v1/auth/login', { email: email.trim(), password })
-        : await api.post<AuthResponse>('/v1/auth/register', {
-            email: email.trim(),
-            password,
-            displayName: displayName.trim(),
-          });
+        ? await api.post<AuthResponse>('/v1/auth/login', { email, password })
+        : await api.post<AuthResponse>('/v1/auth/register', { email, password, displayName });
 
       const token = res.data?.accessToken;
       if (!token) return alert('Ошибка: сервер не вернул accessToken');
@@ -80,7 +79,7 @@ export const LoginPage = () => {
             </div>
           </div>
 
-          <div className={styles.form}>
+          <form className={styles.form} onSubmit={submit}>
             {mode === 'register' && (
               <label className={styles.field} htmlFor="login-display-name">
                 <div className={styles.label}>Отображаемый ник</div>
@@ -89,8 +88,6 @@ export const LoginPage = () => {
                   name="displayName"
                   data-testid="display-name-input"
                   className={styles.input}
-                  value={displayName}
-                  onChange={e => setDisplayName(e.target.value)}
                   placeholder="например: kolya"
                   autoComplete="nickname"
                 />
@@ -105,8 +102,6 @@ export const LoginPage = () => {
                 data-testid="email-input"
                 className={styles.input}
                 type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
                 placeholder="name@example.com"
                 autoComplete="email"
                 autoCapitalize="none"
@@ -122,14 +117,12 @@ export const LoginPage = () => {
                 data-testid="password-input"
                 className={styles.input}
                 type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
                 placeholder="********"
                 autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
               />
             </label>
 
-            <button data-testid="auth-submit" className={styles.submit} type="button" onClick={submit}>
+            <button data-testid="auth-submit" className={styles.submit} type="submit">
               {mode === 'login' ? 'Войти' : 'Создать аккаунт'}
             </button>
 
@@ -158,7 +151,7 @@ export const LoginPage = () => {
                 </>
               )}
             </div>
-          </div>
+          </form>
         </div>
       </div>
     </div>
