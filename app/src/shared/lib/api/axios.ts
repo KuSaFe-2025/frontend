@@ -2,13 +2,14 @@ import axios from 'axios';
 
 const ACCESS_TOKEN_KEY = 'kusafe_access_token';
 const REFRESH_ENDPOINT = '/v1/auth/refresh';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'https://localhost:7267';
 
 export const getAccessToken = () => localStorage.getItem(ACCESS_TOKEN_KEY);
 export const setAccessToken = (token: string) => localStorage.setItem(ACCESS_TOKEN_KEY, token);
 export const clearAccessToken = () => localStorage.removeItem(ACCESS_TOKEN_KEY);
 
 export const api = axios.create({
-  baseURL: 'https://localhost:7267',
+  baseURL: API_BASE_URL,
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 });
@@ -23,7 +24,7 @@ api.interceptors.request.use(config => {
 });
 
 const refreshClient = axios.create({
-  baseURL: 'https://localhost:7267',
+  baseURL: API_BASE_URL,
   withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 });
