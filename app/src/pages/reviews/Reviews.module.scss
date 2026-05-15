@@ -104,6 +104,20 @@ h1 {
   font-weight: 900;
 }
 
+.authorLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.dot,
+.gameMention {
+  color: rgba(15, 23, 42, 0.48);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .stars {
   display: flex;
   gap: 4px;
@@ -188,13 +202,13 @@ h1 {
 }
 
 .gameLink {
-  justify-self: start;
   border: 0;
   padding: 0;
   background: transparent;
-  color: #6d28d9;
+  color: rgba(76, 29, 149, 0.74);
   cursor: pointer;
   font-weight: 900;
+  font: inherit;
 }
 
 .card p {

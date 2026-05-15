@@ -384,6 +384,8 @@ test('real multichoice, attempts, reviews, stats reset and deterministic AI endp
   });
   expect(answer.ok()).toBeTruthy();
   expect(await answer.json()).toMatchObject({ finished: true, score: 80, maxScore: 80, lastAnswerCorrect: true });
+  const incompleteStart = await playerApi.post(`/v1/games/${game.id}/start`);
+  expect(incompleteStart.ok()).toBeTruthy();
 
   const review = await playerApi.post(`/v1/games/${game.id}/reviews`, {
     data: { rating: 5, text: 'Отличная игра с множественным выбором' },
@@ -392,7 +394,13 @@ test('real multichoice, attempts, reviews, stats reset and deterministic AI endp
 
   const attempts = await playerApi.get(`/v1/games/${game.id}/attempts?sort=score_desc`);
   expect(attempts.ok()).toBeTruthy();
-  expect((await attempts.json()).items[0]).toMatchObject({ displayName: 'Player', score: 80, maxScore: 80 });
+  const attemptsBody = await attempts.json();
+  expect(attemptsBody.total).toBe(2);
+  expect(attemptsBody.items[0]).toMatchObject({ displayName: 'Player', score: 80, maxScore: 80 });
+
+  const completedAttempts = await playerApi.get(`/v1/games/${game.id}/attempts?sort=score_desc&completedOnly=true`);
+  expect(completedAttempts.ok()).toBeTruthy();
+  expect((await completedAttempts.json()).total).toBe(1);
 
   const publicReviews = await playerApi.get(`/v1/games/${game.id}/reviews?sort=rating_desc`);
   expect(publicReviews.ok()).toBeTruthy();
@@ -413,7 +421,7 @@ test('real multichoice, attempts, reviews, stats reset and deterministic AI endp
     },
   });
   expect(option.ok()).toBeTruthy();
-  expect((await option.json()).text).toContain('Новый вариант');
+  expect((await option.json()).text).toContain('Неправильный вариант');
 
   const task = await authorApi.post(`/v1/my/games/${game.id}/ai/suggest-task`, {
     data: {
@@ -424,9 +432,9 @@ test('real multichoice, attempts, reviews, stats reset and deterministic AI endp
   expect(task.ok()).toBeTruthy();
   expect((await task.json()).text).toContain('AI-задача');
 
-  const resetTask = await authorApi.delete(`/v1/my/games/${game.id}/tasks/${current.task.id}/stats`);
-  expect(resetTask.ok()).toBeTruthy();
-  expect((await (await authorApi.get(`/v1/my/games/${game.id}/stats`)).json()).attemptsCount).toBe(1);
+  const deleteTask = await authorApi.delete(`/v1/my/games/${game.id}/tasks/${current.task.id}`);
+  expect(deleteTask.ok()).toBeTruthy();
+  expect((await (await authorApi.get(`/v1/my/games/${game.id}/stats`)).json()).attemptsCount).toBe(2);
 
   const resetAll = await authorApi.delete(`/v1/my/games/${game.id}/stats`);
   expect(resetAll.ok()).toBeTruthy();

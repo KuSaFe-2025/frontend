@@ -196,6 +196,66 @@
   resize: vertical;
 }
 
+.colorPicker {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.colorSwatch {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(17, 24, 39, 0.14);
+  cursor: pointer;
+  box-shadow:
+    inset 0 0 0 3px rgba(255, 255, 255, 0.7),
+    0 10px 24px rgba(17, 24, 39, 0.12);
+}
+
+.colorSwatch:hover {
+  transform: translateY(-1px);
+}
+
+.colorText {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.colorTitle {
+  color: rgba(17, 24, 39, 0.55);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.colorHexInput {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #111827;
+  font: inherit;
+  font-weight: 900;
+  outline: none;
+}
+
+.nativeColorInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .actions {
   margin-top: 12px;
   display: flex;
