@@ -268,8 +268,8 @@ test('real auth, catalog, game details and author moderation flow', async ({ pag
   await page.getByText(game.title).hover();
   await expect(page.locator('strong').filter({ hasText: 'Markdown description' })).toBeVisible();
   await page.getByText(game.title).click();
-  await expect(page.getByText('VERIFIED')).toBeVisible();
-  await expect(page.getByText('Approved by KuSaFe')).toBeVisible();
+  await expect(page.getByText('Проверена')).toBeVisible();
+  await expect(page.getByText('Проверено KuSaFe')).toBeVisible();
   await expect(page.locator('strong').filter({ hasText: 'Markdown description' })).toBeVisible();
   await expect(page.getByText('formatted item')).toBeVisible();
   await expect(page.getByText('Викторина')).toBeVisible();
@@ -656,6 +656,10 @@ test('real game play redirects anonymous users to login', async ({ page }) => {
 });
 
 test('public route shell renders home, about and not-found pages', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'KuSaFe' })).toBeVisible();
+  await expect(page.getByTestId('home-feature-box')).toHaveCount(4);
+
   for (const path of ['/', '/about', '/missing-e2e-route']) {
     await page.goto(path);
     const bodyText = await page.locator('body').innerText();

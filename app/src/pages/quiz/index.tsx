@@ -53,7 +53,55 @@ function taskTypeLabel(type: number) {
 }
 
 function statusLabel(status: number) {
-  return ['UNVERIFIED', 'VERIFIED', 'PENDING', 'REJECTED'][status] ?? 'UNVERIFIED';
+  return ['Черновик', 'Проверена', 'На проверке', 'Отклонена'][status] ?? 'Черновик';
+}
+
+function localizeModerationDecision(decision?: string | null) {
+  if (!decision) return '';
+
+  const reasonMatch = decision.match(/Reason:\s*(.+)$/i);
+  const reason = localizeModerationReason(reasonMatch?.[1]?.trim());
+
+  if (/Rejected by local AI moderation/i.test(decision)) {
+    return reason
+      ? `Отклонено локальной AI-модерацией: ${reason}`
+      : 'Отклонено локальной AI-модерацией.';
+  }
+
+  if (/Approved by local AI moderation/i.test(decision)) {
+    return 'Одобрено локальной AI-модерацией.';
+  }
+
+  if (/Rejected by deterministic E2E moderation/i.test(decision)) {
+    return reason
+      ? `Отклонено тестовой модерацией: ${reason}`
+      : 'Отклонено тестовой модерацией.';
+  }
+
+  if (/Approved by deterministic E2E moderation/i.test(decision)) {
+    return 'Одобрено тестовой модерацией.';
+  }
+
+  return decision
+    .replace(/\bYES\b/g, 'да')
+    .replace(/\bNO\b/g, 'нет')
+    .replace(/\bReason:\s*/i, 'Причина: ');
+}
+
+function localizeModerationReason(reason?: string) {
+  if (!reason) return '';
+
+  const normalized = reason.replace(/\s+/g, ' ').trim();
+  const knownReasons: Record<string, string> = {
+    'This content contains hate speech and profanity that is not suitable for a public educational platform.':
+      'Контент содержит ненавистнические высказывания и ненормативную лексику, поэтому не подходит для публичной образовательной платформы.',
+    'Content contains a blocked word.':
+      'Контент содержит запрещённое слово.',
+    'The content did not meet KuSaFe safety rules.':
+      'Контент не соответствует правилам безопасности KuSaFe.',
+  };
+
+  return knownReasons[normalized] ?? normalized;
 }
 
 export const QuizPage = () => {
@@ -165,6 +213,8 @@ export const QuizPage = () => {
                   <div className={styles.desc}>Описание отсутствует.</div>
                 )}
 
+                <div className={styles.metaDivider} aria-hidden="true" />
+
                 <div className={styles.metaRow}>
                   <div className={styles.metaItem}><span className={styles.metaLabel}>Автор</span><span className={styles.metaValue}>{game.ownerDisplayName}</span></div>
                   <div className={styles.metaItem}><span className={styles.metaLabel}>Статус</span><span className={styles.metaValue}>{statusLabel(game.status)}</span></div>
@@ -183,14 +233,14 @@ export const QuizPage = () => {
                 {game.status === 1 && (
                   <div className={styles.approvedBadge}>
                     <span className={styles.approvedDot} aria-hidden="true" />
-                    <span>Approved by KuSaFe</span>
+                    <span>Проверено KuSaFe</span>
                   </div>
                 )}
 
                 {game.status === 3 && game.moderationDecision && (
                   <div className={styles.rejectedBadge}>
                     <span className={styles.rejectedDot} aria-hidden="true" />
-                    <span>{game.moderationDecision}</span>
+                    <span>{localizeModerationDecision(game.moderationDecision)}</span>
                   </div>
                 )}
 

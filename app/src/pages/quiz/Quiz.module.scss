@@ -130,8 +130,15 @@
   }
 }
 
-.metaRow {
+.metaDivider {
+  width: 100%;
+  height: 1px;
   margin-top: auto;
+  background: linear-gradient(90deg, transparent, rgba(15, 23, 42, 0.22), transparent);
+}
+
+.metaRow {
+  margin-top: 0;
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
