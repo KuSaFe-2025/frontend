@@ -7,7 +7,6 @@ type GameListItem = {
   id: string;
   title: string;
   description?: string | null;
-  descriptionFormat?: number;
   tasksCount: number;
   themeColor?: string | null;
   status: number;
@@ -39,7 +38,6 @@ function rgbToHsl(r: number, g: number, b: number) {
   let s = 0;
   const l = (max + min) / 2;
   const d = max - min;
-
   if (d !== 0) {
     s = d / (1 - Math.abs(2 * l - 1));
     switch (max) {
@@ -56,7 +54,6 @@ function rgbToHsl(r: number, g: number, b: number) {
     h *= 60;
     if (h < 0) h += 360;
   }
-
   return { h, s, l };
 }
 
@@ -65,14 +62,20 @@ function hslToCss(h: number, s: number, l: number) {
 }
 
 function buildGradient(themeColor?: string | null) {
-  const base = (themeColor || '#7C3AED').toUpperCase();
-  const rgb = hexToRgb(base) ?? hexToRgb('#7C3AED');
+  const rgb = hexToRgb((themeColor || '#7C3AED').toUpperCase()) ?? hexToRgb('#7C3AED');
   if (!rgb) return 'linear-gradient(135deg, #7C3AED 0%, #A855F7 45%, #C084FC 100%)';
   const { h, s, l } = rgbToHsl(rgb.r, rgb.g, rgb.b);
   const c1 = hslToCss(h, clamp(s * 1.05, 0, 1), clamp(l * 0.85, 0, 1));
   const c2 = hslToCss((h + 18) % 360, clamp(s * 1.1, 0, 1), clamp(l * 1.05, 0, 1));
   const c3 = hslToCss((h + 40) % 360, clamp(s * 0.95, 0, 1), clamp(l * 1.2, 0, 1));
   return `linear-gradient(135deg, ${c1} 0%, ${c2} 45%, ${c3} 100%)`;
+}
+
+function statusHint(game: GameListItem) {
+  if (game.status === 1) return 'Открыть игру';
+  if (game.status === 2) return 'На проверке';
+  if (game.status === 3) return 'Отклонена';
+  return game.canEdit ? 'Черновик автора' : 'Недоступно';
 }
 
 export const Quizes = () => {
@@ -83,56 +86,40 @@ export const Quizes = () => {
 
   useEffect(() => {
     let alive = true;
-
     (async () => {
       try {
         setLoading(true);
         setError(null);
         const res = await api.get<GameListItem[]>('/v1/games');
-        if (!alive) return;
-        setItems(res.data ?? []);
+        if (alive) setItems(res.data ?? []);
       } catch (e: any) {
-        if (!alive) return;
-        setError(String(e?.response?.data ?? e?.message ?? 'Не удалось загрузить игры'));
+        if (alive) setError(String(e?.response?.data ?? e?.message ?? 'Не удалось загрузить игры'));
       } finally {
         if (alive) setLoading(false);
       }
     })();
-
     return () => {
       alive = false;
     };
   }, []);
 
   const content = useMemo(() => {
-    if (loading) return <div className={styles.state}>Загрузка…</div>;
+    if (loading) return <div className={styles.state}>Загрузка...</div>;
     if (error) return <div className={styles.state}>Ошибка: {error}</div>;
     if (!items.length) return <div className={styles.state}>Доступных игр пока нет</div>;
 
     return (
       <div className={styles.grid}>
         {items.map(game => (
-          <button
-            key={game.id}
-            className={styles.card}
-            style={{ backgroundImage: buildGradient(game.themeColor) }}
-            onClick={() => navigate(`/game/${game.id}`)}
-            type="button"
-          >
+          <button key={game.id} className={styles.card} style={{ backgroundImage: buildGradient(game.themeColor) }} onClick={() => navigate(`/game/${game.id}`)} type="button">
             <div className={styles.cardOverlay} />
             <div className={styles.cardBody}>
               <div className={styles.swap}>
                 <div className={styles.title}>{game.title}</div>
-                <div className={styles.qCount}>
-                  {game.tasksCount} задач · {game.ownerDisplayName}
-                </div>
-                <div className={styles.desc}>
-                  {(game.description ?? '').trim() || 'Описание отсутствует'}
-                </div>
+                <div className={styles.qCount}>{game.tasksCount} задач · {game.ownerDisplayName}</div>
+                <div className={styles.desc}>{(game.description ?? '').trim() || 'Описание отсутствует'}</div>
               </div>
-              <div className={styles.hint}>
-                {game.status === 1 ? 'Открыть игру' : game.canEdit ? 'Черновик автора' : 'Недоступно'}
-              </div>
+              <div className={styles.hint}>{statusHint(game)}</div>
             </div>
           </button>
         ))}
@@ -145,10 +132,7 @@ export const Quizes = () => {
       <div className={styles.container}>
         <div className={styles.head}>
           <h1 className={styles.h1}>Игры</h1>
-          <p className={styles.sub}>
-            Выбирайте игры, проходите смешанные задания на время и сравнивайте результаты в
-            лидерборде.
-          </p>
+          <p className={styles.sub}>Выбирайте игры, проходите смешанные задания на время и сравнивайте результаты в лидерборде.</p>
         </div>
         {content}
       </div>
