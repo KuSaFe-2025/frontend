@@ -354,27 +354,27 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
           <div className={styles.blockTitle}>Игра</div>
           <div className={styles.row}>
             <label className={styles.label}>Title</label>
-            <input className={styles.input} value={gameForm.title} onChange={e => setGameForm(p => ({ ...p, title: e.target.value }))} />
+            <input data-testid="game-title-input" className={styles.input} value={gameForm.title} onChange={e => setGameForm(p => ({ ...p, title: e.target.value }))} />
           </div>
           <div className={styles.row}>
             <label className={styles.label}>Description</label>
-            <textarea className={styles.textarea} value={gameForm.description ?? ''} onChange={e => setGameForm(p => ({ ...p, description: e.target.value }))} />
+            <textarea data-testid="game-description-input" className={styles.textarea} value={gameForm.description ?? ''} onChange={e => setGameForm(p => ({ ...p, description: e.target.value }))} />
           </div>
           <div className={styles.row2}>
             <div className={styles.col}>
               <label className={styles.label}>DescriptionFormat</label>
-              <select className={styles.input} value={gameForm.descriptionFormat} onChange={e => setGameForm(p => ({ ...p, descriptionFormat: Number(e.target.value) }))}>
+              <select data-testid="game-description-format-select" className={styles.input} value={gameForm.descriptionFormat} onChange={e => setGameForm(p => ({ ...p, descriptionFormat: Number(e.target.value) }))}>
                 <option value={0}>Plain</option>
                 <option value={1}>Markdown</option>
               </select>
             </div>
             <div className={styles.col}>
               <label className={styles.label}>ThemeColor</label>
-              <input className={styles.input} value={gameForm.themeColor ?? ''} onChange={e => setGameForm(p => ({ ...p, themeColor: e.target.value }))} />
+              <input data-testid="game-theme-color-input" className={styles.input} value={gameForm.themeColor ?? ''} onChange={e => setGameForm(p => ({ ...p, themeColor: e.target.value }))} />
             </div>
             <div className={styles.col}>
               <label className={styles.label}>Status</label>
-              <div className={styles.input}>{game ? statusLabel(game.status) : 'NEW'}</div>
+              <div data-testid="game-status" className={styles.input}>{game ? statusLabel(game.status) : 'NEW'}</div>
             </div>
           </div>
 
@@ -408,22 +408,22 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
           <div className={styles.actions}>
             {creatingNew ? (
               <>
-                <button className={styles.primary} disabled={busy} onClick={createGame} type="button">Создать</button>
+                <button data-testid="create-game-save" className={styles.primary} disabled={busy} onClick={createGame} type="button">Создать</button>
                 <button className={styles.secondary} disabled={busy} onClick={() => setCreatingNew(false)} type="button">Отмена</button>
               </>
             ) : (
               <>
-                <button className={styles.primary} disabled={busy} onClick={saveGame} type="button">Сохранить</button>
-                <button className={styles.danger} disabled={busy} onClick={deleteGame} type="button">Удалить</button>
+                <button data-testid="save-game" className={styles.primary} disabled={busy} onClick={saveGame} type="button">Сохранить</button>
+                <button data-testid="delete-game" className={styles.danger} disabled={busy} onClick={deleteGame} type="button">Удалить</button>
                 {mode === 'mine' && game && game.status !== 1 && game.status !== 2 && (
-                  <button className={styles.secondary} disabled={busy} onClick={submitForVerification} type="button">На проверку</button>
+                  <button data-testid="submit-verification" className={styles.secondary} disabled={busy} onClick={submitForVerification} type="button">На проверку</button>
                 )}
-                {game && <button className={styles.secondary} disabled={busy} onClick={exportCsv} type="button">CSV</button>}
+                {game && <button data-testid="export-csv" className={styles.secondary} disabled={busy} onClick={exportCsv} type="button">CSV</button>}
                 {mode === 'admin' && game && (
                   <>
-                    <button className={styles.secondary} disabled={busy} onClick={() => setStatus(1)} type="button">Verify</button>
-                    <button className={styles.secondary} disabled={busy} onClick={() => setStatus(0)} type="button">Unverify</button>
-                    <button className={styles.secondary} disabled={busy} onClick={() => setStatus(3)} type="button">Reject</button>
+                    <button data-testid="admin-verify" className={styles.secondary} disabled={busy} onClick={() => setStatus(1)} type="button">Verify</button>
+                    <button data-testid="admin-unverify" className={styles.secondary} disabled={busy} onClick={() => setStatus(0)} type="button">Unverify</button>
+                    <button data-testid="admin-reject" className={styles.secondary} disabled={busy} onClick={() => setStatus(3)} type="button">Reject</button>
                   </>
                 )}
               </>
@@ -434,7 +434,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
         <div className={styles.block}>
           <div className={styles.blockHead}>
             <div className={styles.blockTitle}>Задачи</div>
-            {!creatingNew && <button className={styles.secondary} disabled={busy} onClick={openCreateTask} type="button">+ Добавить</button>}
+            {!creatingNew && <button data-testid="open-create-task" className={styles.secondary} disabled={busy} onClick={openCreateTask} type="button">+ Добавить</button>}
           </div>
           <div className={styles.questions}>
             {(game?.tasks ?? []).slice().sort((a, b) => a.order - b.order).map(task => (
@@ -447,8 +447,8 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
                   <div className={styles.qText}>{task.text}</div>
                 </div>
                 <div className={styles.qBtns}>
-                  <button className={styles.small} disabled={busy} onClick={() => openEditTask(task)} type="button">Edit</button>
-                  <button className={styles.smallDanger} disabled={busy} onClick={() => deleteTask(task.id)} type="button">Delete</button>
+                  <button data-testid="edit-task" className={styles.small} disabled={busy} onClick={() => openEditTask(task)} type="button">Edit</button>
+                  <button data-testid="delete-task" className={styles.smallDanger} disabled={busy} onClick={() => deleteTask(task.id)} type="button">Delete</button>
                 </div>
               </div>
             ))}
@@ -460,7 +460,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
               <div className={styles.row2}>
                 <div className={styles.col}>
                   <label className={styles.label}>Type</label>
-                  <select className={styles.input} value={taskForm.type} onChange={e => setTaskForm(p => ({ ...p, type: Number(e.target.value) }))}>
+                  <select data-testid="task-type-select" className={styles.input} value={taskForm.type} onChange={e => setTaskForm(p => ({ ...p, type: Number(e.target.value) }))}>
                     <option value={0}>Quiz</option>
                     <option value={1}>True/False</option>
                     <option value={2}>Puzzle</option>
@@ -470,21 +470,21 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
                 </div>
                 <div className={styles.col}>
                   <label className={styles.label}>Order</label>
-                  <input className={styles.input} type="number" value={taskForm.order} onChange={e => setTaskForm(p => ({ ...p, order: Number(e.target.value) }))} />
+                  <input data-testid="task-order-input" className={styles.input} type="number" value={taskForm.order} onChange={e => setTaskForm(p => ({ ...p, order: Number(e.target.value) }))} />
                 </div>
                 <div className={styles.col}>
                   <label className={styles.label}>TimeLimitMs</label>
-                  <input className={styles.input} type="number" value={taskForm.timeLimitMs} onChange={e => setTaskForm(p => ({ ...p, timeLimitMs: Number(e.target.value) }))} />
+                  <input data-testid="task-time-limit-input" className={styles.input} type="number" value={taskForm.timeLimitMs} onChange={e => setTaskForm(p => ({ ...p, timeLimitMs: Number(e.target.value) }))} />
                 </div>
               </div>
               <div className={styles.row}>
                 <label className={styles.label}>Text</label>
-                <textarea className={styles.textarea} value={taskForm.text} onChange={e => setTaskForm(p => ({ ...p, text: e.target.value }))} />
+                <textarea data-testid="task-text-input" className={styles.textarea} value={taskForm.text} onChange={e => setTaskForm(p => ({ ...p, text: e.target.value }))} />
               </div>
               {taskForm.type !== 3 && taskForm.type !== 4 && (
                 <div className={styles.row}>
                   <label className={styles.label}>Points</label>
-                  <input className={styles.input} type="number" value={taskForm.points} onChange={e => setTaskForm(p => ({ ...p, points: Number(e.target.value) }))} />
+                  <input data-testid="task-points-input" className={styles.input} type="number" value={taskForm.points} onChange={e => setTaskForm(p => ({ ...p, points: Number(e.target.value) }))} />
                 </div>
               )}
               {taskForm.type !== 3 && (
@@ -494,9 +494,10 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
                     {(taskForm.type === 1 ? ['Правда', 'Ложь'] : taskForm.options).map((value, index) => (
                       <div key={`${index}-${value}`} className={styles.optRow}>
                         {(taskForm.type === 0 || taskForm.type === 1) && (
-                          <input className={styles.optRadio} type="radio" checked={Number(taskForm.correctOptionIndex ?? 0) === index} onChange={() => setTaskForm(p => ({ ...p, correctOptionIndex: index }))} />
+                          <input data-testid={`task-correct-option-${index}`} className={styles.optRadio} type="radio" checked={Number(taskForm.correctOptionIndex ?? 0) === index} onChange={() => setTaskForm(p => ({ ...p, correctOptionIndex: index }))} />
                         )}
                         <input
+                          data-testid={`task-option-${index}`}
                           className={styles.input}
                           disabled={taskForm.type === 1}
                           value={value}
@@ -516,14 +517,14 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
                       </div>
                     ))}
                     {taskForm.type !== 1 && taskForm.type !== 3 && (
-                      <button className={styles.secondary} type="button" onClick={() => setTaskForm(p => ({ ...p, options: [...p.options, ''] }))}>+ Option</button>
+                      <button data-testid="add-task-option" className={styles.secondary} type="button" onClick={() => setTaskForm(p => ({ ...p, options: [...p.options, ''] }))}>+ Option</button>
                     )}
                   </div>
                 </div>
               )}
               <div className={styles.actions}>
-                <button className={styles.primary} disabled={busy} onClick={saveTask} type="button">Сохранить задачу</button>
-                <button className={styles.secondary} disabled={busy} onClick={() => setTaskFormOpen(false)} type="button">Закрыть</button>
+                <button data-testid="save-task" className={styles.primary} disabled={busy} onClick={saveTask} type="button">Сохранить задачу</button>
+                <button data-testid="close-task-form" className={styles.secondary} disabled={busy} onClick={() => setTaskFormOpen(false)} type="button">Закрыть</button>
               </div>
             </div>
           )}
@@ -565,19 +566,19 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
         <aside className={styles.left}>
           <div className={styles.leftHead}>
             <div className={styles.h1}>{mode === 'admin' ? 'Все игры' : 'Мои игры'}</div>
-            {mode === 'mine' && <button className={styles.secondary} onClick={beginCreateGame} type="button">+ Игра</button>}
+            {mode === 'mine' && <button data-testid="open-create-game" className={styles.secondary} onClick={beginCreateGame} type="button">+ Игра</button>}
           </div>
           {loadingList ? <div className={styles.state}>Загрузка...</div> : (
             <div className={styles.list}>
               {list.map(item => (
-                <button key={item.id} className={`${styles.item} ${selectedId === item.id ? styles.itemActive : ''}`} onClick={() => { setCreatingNew(false); setSelectedId(item.id); }} type="button">
+                <button key={item.id} data-testid="game-list-item" className={`${styles.item} ${selectedId === item.id ? styles.itemActive : ''}`} onClick={() => { setCreatingNew(false); setSelectedId(item.id); }} type="button">
                   <div className={styles.itemTitle}>{item.title}</div>
                   <div className={styles.itemMeta}>{item.tasksCount} задач · {statusLabel(item.status)} · {item.ownerDisplayName}</div>
                 </button>
               ))}
             </div>
           )}
-          {err && <div className={styles.error}>{err}</div>}
+          {err && <div data-testid="dashboard-error" className={styles.error}>{err}</div>}
         </aside>
         <main className={styles.right}>{right}</main>
       </div>
