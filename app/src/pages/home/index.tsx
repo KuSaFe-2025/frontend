@@ -1,6 +1,15 @@
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import styles from './Home.module.scss';
-import { getAccessToken } from '@/shared/lib';
+import { api, getAccessToken } from '@/shared/lib';
+
+type GameListItem = {
+  id: string;
+  title: string;
+  description?: string | null;
+  tasksCount: number;
+  ownerDisplayName: string;
+};
 
 const features = [
   {
@@ -23,10 +32,18 @@ const features = [
 
 export const HomePage = () => {
   const navigate = useNavigate();
+  const [featured, setFeatured] = useState<GameListItem | null>(null);
 
   const isAuthed = !!getAccessToken();
 
   const goAuth = () => navigate(isAuthed ? '/quizes' : '/login');
+
+  useEffect(() => {
+    api
+      .get<GameListItem>('/v1/games/featured')
+      .then(res => setFeatured(res.data ?? null))
+      .catch(() => setFeatured(null));
+  }, []);
 
   return (
     <div className={styles.page}>
@@ -55,6 +72,26 @@ export const HomePage = () => {
               </article>
             ))}
           </div>
+
+          {featured && (
+            <>
+              <div className={styles.sectionDivider} aria-hidden="true" />
+              <section className={styles.featuredGame}>
+                <div>
+                  <div className={styles.featuredKicker}>Рекомендуемая игра</div>
+                  <h2>{featured.title}</h2>
+                  <p>{featured.description || 'Проверенная игра KuSaFe с активными прохождениями.'}</p>
+                  <div className={styles.featuredMeta}>
+                    <span>{featured.tasksCount} задач</span>
+                    <span>Автор: {featured.ownerDisplayName}</span>
+                  </div>
+                </div>
+                <button className={styles.startBtn} onClick={() => navigate(`/game/${featured.id}`)}>
+                  Открыть игру
+                </button>
+              </section>
+            </>
+          )}
         </section>
       </main>
     </div>

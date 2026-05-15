@@ -6,5 +6,6 @@ export { LoginPage } from './login';
 export { QuizPage } from './quiz';
 export { QuizPlayPage } from './quizPlay';
 export { QuizResultPage } from './quizResult';
+export { ReviewsPage } from './reviews';
 export { AdminGuard } from './admin';
 export { AdminDashboard } from './admin/AdminDashboard';

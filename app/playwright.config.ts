@@ -12,7 +12,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: 'dotnet run --project ..\\..\\KuSaFeBackend\\KuSaFeBackend.csproj --no-launch-profile --urls http://127.0.0.1:5267',
+      command: 'dotnet run --no-restore --project ..\\..\\KuSaFeBackend\\KuSaFeBackend.csproj --no-launch-profile --urls http://127.0.0.1:5267',
       url: 'http://127.0.0.1:5267/v1/health',
       reuseExistingServer: true,
       timeout: 120000,
@@ -20,6 +20,7 @@ export default defineConfig({
         ASPNETCORE_ENVIRONMENT: 'E2E',
         ASPNETCORE_URLS: 'http://127.0.0.1:5267',
         Moderation__Provider: process.env.KUSAFE_E2E_OLLAMA === '1' ? 'Ollama' : 'Deterministic',
+        Ai__Provider: 'Deterministic',
       },
     },
     {

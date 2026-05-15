@@ -26,6 +26,7 @@ type AnswerRequest = {
   attemptId: string;
   questionToken: string;
   selectedOptionId?: string | null;
+  selectedOptionIds?: string[] | null;
   textAnswer?: string | null;
   orderedOptionIds?: string[] | null;
 };
@@ -85,6 +86,8 @@ function taskTypeLabel(type: number) {
       return 'Открытый ответ';
     case 4:
       return 'Опрос';
+    case 5:
+      return 'Множественный выбор';
     default:
       return 'Задача';
   }
@@ -108,6 +111,7 @@ export const QuizPlayPage = () => {
   const [answers, setAnswers] = useState<(boolean | null)[]>([]);
 
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null);
+  const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
   const [textAnswer, setTextAnswer] = useState('');
   const [orderedOptionIds, setOrderedOptionIds] = useState<string[]>([]);
 
@@ -149,6 +153,7 @@ export const QuizPlayPage = () => {
 
   const resetTaskState = (nextTask: PublicTaskDto) => {
     setSelectedOptionId(null);
+    setSelectedOptionIds([]);
     setTextAnswer('');
     setOrderedOptionIds(nextTask.type === 2 ? nextTask.options.map(option => option.id) : []);
   };
@@ -279,6 +284,12 @@ export const QuizPlayPage = () => {
         alert('Выберите вариант ответа.');
         return;
       }
+    } else if (task.type === 5) {
+      request.selectedOptionIds = selectedOptionIds;
+      if (selectedOptionIds.length === 0) {
+        alert('Выберите хотя бы один вариант ответа.');
+        return;
+      }
     } else if (task.type === 2) {
       request.orderedOptionIds = orderedOptionIds;
     } else if (task.type === 3) {
@@ -308,6 +319,10 @@ export const QuizPlayPage = () => {
       [next[index], next[target]] = [next[target], next[index]];
       return next;
     });
+  };
+
+  const toggleMultiOption = (id: string) => {
+    setSelectedOptionIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
   if (!task) {
@@ -366,6 +381,7 @@ export const QuizPlayPage = () => {
                   <div data-testid="task-points-label" className={styles.points}>{task.points > 0 ? `${task.points} очков` : 'без оценки'}</div>
                 </div>
 
+                <div className={styles.taskDivider} aria-hidden="true" />
                 <div className={styles.qText}>{task.text}</div>
               </div>
 
@@ -400,6 +416,27 @@ export const QuizPlayPage = () => {
                   ))}
                   <button className={styles.primaryBtn} onClick={() => void sendAnswer()} type="button" disabled={locked}>
                     Сохранить порядок
+                  </button>
+                </div>
+              ) : task.type === 5 ? (
+                <div className={options.length > 6 ? styles.optionsList : styles.optionsGrid}>
+                  {options.map(option => {
+                    const checked = selectedOptionIds.includes(option.id);
+                    return (
+                      <button
+                        key={option.id}
+                        className={`${styles.optionBtn} ${checked ? styles.optionBtnSelected : ''}`}
+                        onClick={() => toggleMultiOption(option.id)}
+                        disabled={locked}
+                        type="button"
+                      >
+                        <span className={styles.multiMark}>{checked ? '✓' : '+'}</span>
+                        <span className={styles.optionText}>{option.text}</span>
+                      </button>
+                    );
+                  })}
+                  <button className={styles.primaryBtn} onClick={() => void sendAnswer()} type="button" disabled={locked}>
+                    Отправить выбор
                   </button>
                 </div>
               ) : (

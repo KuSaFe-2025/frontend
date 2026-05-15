@@ -3,7 +3,7 @@ import styles from './AdminDashboard.module.scss';
 import { api } from '@/shared/lib';
 
 type DashboardMode = 'mine' | 'admin';
-type ActiveTab = 'info' | 'tasks' | 'stats';
+type ActiveTab = 'info' | 'tasks' | 'stats' | 'reviews';
 
 type GameListItem = {
   id: string;
@@ -19,7 +19,7 @@ type GameListItem = {
   ownerDisplayName: string;
 };
 
-type OptionDto = { id: string; text: string; isActive: boolean; sortOrder: number };
+type OptionDto = { id: string; text: string; isActive: boolean; sortOrder: number; isCorrect: boolean };
 
 type TaskDto = {
   id: string;
@@ -55,6 +55,7 @@ type TaskUpsertRequest = {
   timeLimitMs: number;
   options: string[];
   correctOptionIndex?: number | null;
+  correctOptionIndexes?: number[];
 };
 
 type StatsTask = {
@@ -97,10 +98,39 @@ type OpenAnswersState = {
   expanded: Record<number, boolean>;
 };
 
+type Page<T> = {
+  items: T[];
+  total: number;
+  skip: number;
+  take: number;
+  hasMore: boolean;
+};
+
+type ReviewItem = {
+  id: string;
+  gameId?: string | null;
+  gameTitle?: string | null;
+  displayName: string;
+  rating: number;
+  text: string;
+  createdAtUtc: string;
+  canDelete: boolean;
+};
+
+type AiTaskSuggestion = {
+  type: number;
+  text: string;
+  points: number;
+  timeLimitMs: number;
+  options: string[];
+  correctOptionIndexes: number[];
+};
+
 const TAB_LABELS: Record<ActiveTab, string> = {
   info: 'Основная информация',
   tasks: 'Задачи',
   stats: 'Статистика',
+  reviews: 'Отзывы',
 };
 
 const VERIFIED_EDIT_WARNING = 'Если вы отредактируете данное поле, ваша игра потеряет статус проверенной, и модерацию надо будет проходить ещё раз. Продолжить?';
@@ -112,7 +142,7 @@ function normalizeHex(input: string) {
 }
 
 function taskTypeLabel(type: number) {
-  return ['Викторина', 'Верно/неверно', 'Порядок', 'Открытый ответ', 'Опрос'][type] ?? 'Задача';
+  return ['Викторина', 'Верно/неверно', 'Порядок', 'Открытый ответ', 'Опрос', 'Множественный выбор'][type] ?? 'Задача';
 }
 
 function statusLabel(status: number) {
@@ -206,6 +236,7 @@ function defaultTaskForm(order: number): TaskUpsertRequest {
     timeLimitMs: 60000,
     options: ['', ''],
     correctOptionIndex: 0,
+    correctOptionIndexes: [0],
   };
 }
 
@@ -224,6 +255,9 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
   const [taskEditId, setTaskEditId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ActiveTab>('info');
   const [openAnswers, setOpenAnswers] = useState<Record<string, OpenAnswersState>>({});
+  const [reviews, setReviews] = useState<Page<ReviewItem> | null>(null);
+  const [reviewSort, setReviewSort] = useState('new');
+  const [aiBusy, setAiBusy] = useState<string | null>(null);
   const [verifiedEditAcknowledged, setVerifiedEditAcknowledged] = useState(false);
   const [verifiedEditDialogOpen, setVerifiedEditDialogOpen] = useState(false);
   const pendingVerifiedActionRef = useRef<(() => void) | null>(null);
@@ -261,6 +295,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
       setGame(gameRes.data);
       setStats(statsRes.data);
       setOpenAnswers({});
+      setReviews(null);
       setGameForm({
         title: gameRes.data.title ?? '',
         description: gameRes.data.description ?? '',
@@ -275,6 +310,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
       setGame(null);
       setStats(null);
       setOpenAnswers({});
+      setReviews(null);
     } finally {
       setLoadingGame(false);
     }
@@ -520,6 +556,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
       timeLimitMs: task.timeLimitMs,
       options: sortedOptions.map(x => x.text),
       correctOptionIndex: correctIndex >= 0 ? correctIndex : 0,
+      correctOptionIndexes: sortedOptions.map((option, index) => option.isCorrect ? index : -1).filter(index => index >= 0),
     });
     setTaskFormOpen(true);
   };
@@ -560,6 +597,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
       timeLimitMs: Number(taskForm.timeLimitMs),
       options: (taskForm.options ?? []).map(x => (x ?? '').trim()).filter(Boolean),
       correctOptionIndex: taskForm.type === 0 || taskForm.type === 1 ? Number(taskForm.correctOptionIndex ?? 0) : null,
+      correctOptionIndexes: taskForm.type === 5 ? (taskForm.correctOptionIndexes ?? []) : [],
     };
     try {
       if (taskEditId) await api.put(`${basePath}/${game.id}/tasks/${taskEditId}`, payload);
@@ -598,9 +636,148 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
     runWithVerifiedWarning(() => void deleteTaskConfirmed(taskId));
   };
 
+  const loadReviews = useCallback(async (skip = 0) => {
+    if (!game) return;
+    try {
+      const res = await api.get<Page<ReviewItem>>(`${basePath}/${game.id}/reviews`, {
+        params: { skip, take: 10, sort: reviewSort },
+      });
+      setReviews(res.data);
+    } catch (e: any) {
+      setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось загрузить отзывы'));
+    }
+  }, [basePath, game, reviewSort]);
+
+  useEffect(() => {
+    if (activeTab !== 'reviews' || !game) return;
+    void loadReviews(0);
+  }, [activeTab, game?.id, reviewSort, loadReviews]);
+
+  const deleteReview = async (reviewId: string) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.delete(`/v1/admin/reviews/${reviewId}`);
+      await loadReviews(reviews?.skip ?? 0);
+    } catch (e: any) {
+      setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось удалить отзыв'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resetAllStats = async () => {
+    if (!game) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.delete(`${basePath}/${game.id}/stats`);
+      await loadGame(game.id);
+    } catch (e: any) {
+      setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось сбросить статистику'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const resetTaskStats = async (taskId: string) => {
+    if (!game) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await api.delete(`${basePath}/${game.id}/tasks/${taskId}/stats`);
+      await loadGame(game.id);
+    } catch (e: any) {
+      setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось сбросить статистику задачи'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const canUseAi = mode === 'mine' && game && !creatingNew;
+  const hasTwoWords = (value?: string | null) => (value ?? '').trim().split(/\s+/).filter(Boolean).length >= 2;
+
+  const rewriteText = async (field: 'description' | 'taskText', modeName: string) => {
+    if (!game || !canUseAi) return;
+    const source = field === 'description' ? gameForm.description ?? '' : taskForm.text;
+    if (!hasTwoWords(source)) return;
+    setAiBusy(`${field}-${modeName}`);
+    setErr(null);
+    try {
+      const res = await api.post(`${basePath}/${game.id}/ai/rewrite/stream`, {
+        field,
+        mode: modeName,
+        text: source,
+      }, { responseType: 'text' });
+      const next = String(res.data ?? '').trim();
+      if (field === 'description') updateGameForm(p => ({ ...p, description: next }));
+      else updateTaskForm(p => ({ ...p, text: next }));
+    } catch (e: any) {
+      setErr(String(e?.response?.data ?? e?.message ?? 'AI не смог переписать текст'));
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
+  const suggestOption = async () => {
+    if (!game || !canUseAi) return;
+    setAiBusy('option');
+    setErr(null);
+    try {
+      const res = await api.post<{ text: string }>(`${basePath}/${game.id}/ai/suggest-option`, {
+        game: gameForm,
+        task: taskForm,
+      });
+      updateTaskForm(p => ({ ...p, options: [...p.options, res.data.text] }));
+    } catch (e: any) {
+      setErr(String(e?.response?.data ?? e?.message ?? 'AI не смог придумать вариант'));
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
+  const suggestTask = async () => {
+    if (!game || !canUseAi) return;
+    setAiBusy('task');
+    setErr(null);
+    try {
+      const res = await api.post<AiTaskSuggestion>(`${basePath}/${game.id}/ai/suggest-task`, {
+        game: gameForm,
+        tasks: game.tasks.map(task => ({
+          type: task.type,
+          order: task.order,
+          text: task.text,
+          points: task.points,
+          timeLimitMs: task.timeLimitMs,
+          options: task.options.filter(o => o.isActive).sort((a, b) => a.sortOrder - b.sortOrder).map(o => o.text),
+          correctOptionIndex: 0,
+          correctOptionIndexes: task.options.filter(o => o.isActive).sort((a, b) => a.sortOrder - b.sortOrder).map((o, i) => o.isCorrect ? i : -1).filter(i => i >= 0),
+        })),
+      });
+      const suggestion = res.data;
+      setActiveTab('tasks');
+      setTaskEditId(null);
+      setTaskForm({
+        type: suggestion.type,
+        order: game.tasks.length,
+        text: suggestion.text,
+        points: suggestion.points,
+        timeLimitMs: suggestion.timeLimitMs,
+        options: suggestion.options?.length ? suggestion.options : ['', ''],
+        correctOptionIndex: suggestion.correctOptionIndexes?.[0] ?? 0,
+        correctOptionIndexes: suggestion.correctOptionIndexes ?? [],
+      });
+      setTaskFormOpen(true);
+    } catch (e: any) {
+      setErr(String(e?.response?.data ?? e?.message ?? 'AI не смог придумать задачу'));
+    } finally {
+      setAiBusy(null);
+    }
+  };
+
   const tabs = useMemo(() => {
     const disabled = creatingNew || !game;
-    return (['info', 'tasks', 'stats'] as ActiveTab[]).map(tab => (
+    return (['info', 'tasks', 'stats', 'reviews'] as ActiveTab[]).map(tab => (
       <button
         key={tab}
         data-testid={`dashboard-tab-${tab}`}
@@ -632,6 +809,13 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
           const value = e.target.value;
           updateGameForm(p => ({ ...p, description: value }));
         }} />
+        {canUseAi && hasTwoWords(gameForm.description) && (
+          <div className={styles.aiActions}>
+            <button className={styles.aiButton} disabled={!!aiBusy} type="button" onClick={() => rewriteText('description', 'professional')}>✨ Профессиональнее</button>
+            <button className={styles.aiButton} disabled={!!aiBusy} type="button" onClick={() => rewriteText('description', 'simple')}>✨ Упростить</button>
+            <button className={styles.aiButton} disabled={!!aiBusy} type="button" onClick={() => rewriteText('description', 'hard')}>✨ Усложнить</button>
+          </div>
+        )}
       </div>
       <div className={styles.row2}>
         <div className={styles.col}>
@@ -695,7 +879,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
             <button data-testid="save-game" className={styles.primary} disabled={busy || !game} onClick={saveGame} type="button">Сохранить</button>
             <button data-testid="delete-game" className={styles.danger} disabled={busy || !game} onClick={deleteGame} type="button">Удалить</button>
             {mode === 'mine' && game && game.status !== 1 && game.status !== 2 && (
-              <button data-testid="submit-verification" className={styles.secondary} disabled={busy} onClick={submitForVerification} type="button">На проверку</button>
+              <button data-testid="submit-verification" className={styles.secondary} disabled={busy} onClick={submitForVerification} type="button">{busy ? 'Проверка...' : 'На проверку'}</button>
             )}
             {mode === 'admin' && game && (
               <>
@@ -714,7 +898,12 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
     <div className={styles.block}>
       <div className={styles.blockHead}>
         <div className={styles.blockTitle}>Задачи</div>
-        {game && <button data-testid="open-create-task" className={styles.secondary} disabled={busy} onClick={openCreateTask} type="button">+ Добавить задачу</button>}
+        {game && (
+          <div className={styles.headActions}>
+            {canUseAi && <button data-testid="ai-suggest-task" className={styles.aiSolid} disabled={!!aiBusy || busy} onClick={suggestTask} type="button">✨ Придумать новую задачу</button>}
+            <button data-testid="open-create-task" className={styles.secondary} disabled={busy} onClick={openCreateTask} type="button">+ Добавить задачу</button>
+          </div>
+        )}
       </div>
       <div className={styles.questions}>
         {(game?.tasks ?? []).slice().sort((a, b) => effectiveTaskOrder(a) - effectiveTaskOrder(b) || a.id.localeCompare(b.id)).map(task => (
@@ -749,6 +938,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
                 <option value={2}>Порядок</option>
                 <option value={3}>Открытый ответ</option>
                 <option value={4}>Опрос</option>
+                <option value={5}>Множественный выбор</option>
               </select>
             </div>
             <div className={styles.col}>
@@ -794,6 +984,13 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
               const value = e.target.value;
               updateTaskForm(p => ({ ...p, text: value }));
             }} />
+            {canUseAi && hasTwoWords(taskForm.text) && (
+              <div className={styles.aiActions}>
+                <button className={styles.aiButton} disabled={!!aiBusy} type="button" onClick={() => rewriteText('taskText', 'professional')}>✨ Профессиональнее</button>
+                <button className={styles.aiButton} disabled={!!aiBusy} type="button" onClick={() => rewriteText('taskText', 'simple')}>✨ Упростить</button>
+                <button className={styles.aiButton} disabled={!!aiBusy} type="button" onClick={() => rewriteText('taskText', 'hard')}>✨ Усложнить</button>
+              </div>
+            )}
           </div>
           {taskForm.type !== 3 && taskForm.type !== 4 && (
             <div className={styles.row}>
@@ -809,9 +1006,22 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
               <div className={styles.label}>Варианты ответа</div>
               <div className={styles.opts}>
                 {(taskForm.type === 1 ? ['Правда', 'Ложь'] : taskForm.options).map((value, index) => (
-                  <div key={`option-${index}`} className={`${styles.optRow} ${taskForm.type === 0 || taskForm.type === 1 ? '' : styles.optRowNoRadio}`}>
+                  <div key={`option-${index}`} className={`${styles.optRow} ${taskForm.type === 0 || taskForm.type === 1 || taskForm.type === 5 ? '' : styles.optRowNoRadio}`}>
                     {(taskForm.type === 0 || taskForm.type === 1) && (
                       <input data-testid={`task-correct-option-${index}`} className={styles.optRadio} type="radio" checked={Number(taskForm.correctOptionIndex ?? 0) === index} onChange={() => updateTaskForm(p => ({ ...p, correctOptionIndex: index }))} />
+                    )}
+                    {taskForm.type === 5 && (
+                      <input
+                        data-testid={`task-correct-option-${index}`}
+                        className={styles.optRadio}
+                        type="checkbox"
+                        checked={(taskForm.correctOptionIndexes ?? []).includes(index)}
+                        onChange={() => updateTaskForm(p => {
+                          const current = p.correctOptionIndexes ?? [];
+                          const next = current.includes(index) ? current.filter(x => x !== index) : [...current, index].sort((a, b) => a - b);
+                          return { ...p, correctOptionIndexes: next };
+                        })}
+                      />
                     )}
                     <input
                       data-testid={`task-option-${index}`}
@@ -828,13 +1038,22 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
                       <button data-testid={`remove-task-option-${index}`} className={styles.smallDanger} type="button" disabled={(taskForm.options?.length ?? 0) <= 2} onClick={() => {
                         const next = (taskForm.options ?? []).slice();
                         next.splice(index, 1);
-                        updateTaskForm(p => ({ ...p, options: next }));
+                        updateTaskForm(p => ({
+                          ...p,
+                          options: next,
+                          correctOptionIndexes: (p.correctOptionIndexes ?? [])
+                            .filter(i => i !== index)
+                            .map(i => i > index ? i - 1 : i),
+                        }));
                       }}>-</button>
                     )}
                   </div>
                 ))}
                 {taskForm.type !== 1 && taskForm.type !== 3 && (
-                  <button data-testid="add-task-option" className={styles.secondary} type="button" onClick={() => updateTaskForm(p => ({ ...p, options: [...p.options, ''] }))}>+ Вариант</button>
+                  <div className={styles.headActions}>
+                    <button data-testid="add-task-option" className={styles.secondary} type="button" onClick={() => updateTaskForm(p => ({ ...p, options: [...p.options, ''] }))}>+ Вариант</button>
+                    {canUseAi && <button data-testid="ai-suggest-option" className={styles.aiSolid} disabled={!!aiBusy} type="button" onClick={suggestOption}>✨ Придумать новый вариант</button>}
+                  </div>
                 )}
               </div>
             </div>
@@ -852,7 +1071,12 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
     <div className={styles.block}>
       <div className={styles.blockHead}>
         <div className={styles.blockTitle}>Статистика</div>
-        {game && <button data-testid="export-csv" className={styles.secondary} disabled={busy} onClick={exportCsv} type="button">Экспорт CSV</button>}
+        {game && (
+          <div className={styles.headActions}>
+            <button data-testid="reset-game-stats" className={styles.danger} disabled={busy} onClick={resetAllStats} type="button">Сбросить статистику</button>
+            <button data-testid="export-csv" className={styles.secondary} disabled={busy} onClick={exportCsv} type="button">Экспорт CSV</button>
+          </div>
+        )}
       </div>
       {stats ? (
         <>
@@ -874,6 +1098,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
                         <span className={`${styles.statBadge} ${styles.statBadgeOk}`}>верных {task.correctAnswers}</span>
                         <span className={`${styles.statBadge} ${styles.statBadgeBad}`}>ошибок {task.incorrectAnswers}</span>
                         <span className={`${styles.statBadge} ${styles.statBadgeNeutral}`}>нейтр. {task.neutralAnswers}</span>
+                        <button data-testid="reset-task-stats" className={styles.inlineDanger} disabled={busy} onClick={() => resetTaskStats(task.taskId)} type="button">сбросить</button>
                       </div>
                     </div>
                     <div className={styles.bar} aria-hidden="true">
@@ -924,6 +1149,44 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
     </div>
   );
 
+  const reviewsTab = (
+    <div className={styles.block}>
+      <div className={styles.blockHead}>
+        <div className={styles.blockTitle}>Отзывы</div>
+        <select className={styles.input} value={reviewSort} onChange={e => setReviewSort(e.target.value)}>
+          <option value="new">Сначала новые</option>
+          <option value="rating_desc">Высокая оценка</option>
+          <option value="rating_asc">Низкая оценка</option>
+        </select>
+      </div>
+      <div className={styles.reviewsList}>
+        {(reviews?.items ?? []).map(review => (
+          <article className={styles.reviewCard} key={review.id}>
+            <div className={styles.reviewTop}>
+              <div>
+                <b>{review.displayName}</b>
+                <div>{new Date(review.createdAtUtc).toLocaleString('ru-RU')}</div>
+              </div>
+              <span>{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</span>
+            </div>
+            <p>{review.text}</p>
+            {review.canDelete && (
+              <button className={styles.smallDanger} disabled={busy} type="button" onClick={() => deleteReview(review.id)}>
+                Удалить
+              </button>
+            )}
+          </article>
+        ))}
+        {(reviews?.items.length ?? 0) === 0 && <div className={styles.state}>Отзывов пока нет</div>}
+      </div>
+      <div className={styles.pager}>
+        <button className={styles.secondary} disabled={!reviews || reviews.skip <= 0 || busy} onClick={() => loadReviews(Math.max(0, (reviews?.skip ?? 0) - 10))} type="button">Назад</button>
+        <span>{reviews ? `${reviews.skip + (reviews.items.length ? 1 : 0)}-${reviews.skip + reviews.items.length} из ${reviews.total}` : '0 из 0'}</span>
+        <button className={styles.secondary} disabled={!reviews?.hasMore || busy} onClick={() => loadReviews((reviews?.skip ?? 0) + 10)} type="button">Дальше</button>
+      </div>
+    </div>
+  );
+
   const right = useMemo(() => {
     if (loadingGame) return <div className={styles.state}>Загрузка игры...</div>;
     if (!game && !creatingNew) return <div className={styles.state}>Выберите игру слева</div>;
@@ -934,9 +1197,10 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
         {activeTab === 'info' && infoTab}
         {activeTab === 'tasks' && tasksTab}
         {activeTab === 'stats' && statsTab}
+        {activeTab === 'reviews' && reviewsTab}
       </div>
     );
-  }, [activeTab, busy, creatingNew, game, gameForm, loadingGame, mode, openAnswers, stats, tabs, taskEditId, taskForm, taskFormOpen]);
+  }, [activeTab, aiBusy, busy, creatingNew, game, gameForm, loadingGame, mode, openAnswers, reviews, reviewSort, stats, tabs, taskEditId, taskForm, taskFormOpen]);
 
   return (
     <div className={styles.page}>
@@ -957,6 +1221,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
             </div>
           )}
           {err && <div data-testid="dashboard-error" className={styles.error}>{err}</div>}
+          {aiBusy && <div data-testid="ai-working" className={styles.aiWorking}>AI работает...</div>}
         </aside>
         <main className={styles.right}>{right}</main>
       </div>

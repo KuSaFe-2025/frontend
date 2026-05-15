@@ -12,7 +12,7 @@ type AuthResponse = {
 
 type Created = { id: string };
 type EditorGame = { id: string; title: string; status: number; tasks: EditorTask[] };
-type EditorTask = { id: string; text: string; type: number; options: { id: string; text: string }[] };
+type EditorTask = { id: string; text: string; type: number; options: { id: string; text: string; isCorrect?: boolean }[] };
 type StartResponse = { attemptId: string; questionToken: string; task: PublicTask };
 type PublicTask = { id: string; type: number; order: number; text: string; options: { id: string; text: string }[] };
 type AnswerResponse = {
@@ -36,6 +36,7 @@ type TaskUpsert = {
   timeLimitMs: number;
   options: string[];
   correctOptionIndex: number | null;
+  correctOptionIndexes?: number[];
 };
 
 async function resetAndSeed() {
@@ -123,6 +124,7 @@ async function createMixedGame(token: string) {
     { type: 2, order: 2, text: 'Order the steps.', points: 75, timeLimitMs: 60000, options: ['First', 'Second'], correctOptionIndex: null },
     { type: 3, order: 3, text: 'Write a short answer.', points: 0, timeLimitMs: 60000, options: [], correctOptionIndex: null },
     { type: 4, order: 4, text: 'Choose your favorite format.', points: 0, timeLimitMs: 60000, options: ['Quiz', 'Poll'], correctOptionIndex: null },
+    { type: 5, order: 5, text: 'Select all even numbers.', points: 40, timeLimitMs: 60000, options: ['2', '3', '4'], correctOptionIndex: null, correctOptionIndexes: [0, 2] },
   ];
 
   for (const task of tasks) await createTaskViaApi(token, game.id, task);
@@ -209,6 +211,8 @@ async function answerCurrent(api: APIRequestContext, gameId: string, current: St
     payload.textAnswer = 'Open answer from real E2E';
   } else if (task.type === 4) {
     payload.selectedOptionId = task.options[0].id;
+  } else if (task.type === 5) {
+    payload.selectedOptionIds = task.options.filter(o => o.text === '2' || o.text === '4').map(o => o.id);
   }
 
   const resp = await api.post(`/v1/games/${gameId}/answer`, { data: payload });
@@ -352,6 +356,82 @@ test('real author CRUD, stats and CSV export endpoints', async () => {
   expect(delGame.ok()).toBeTruthy();
 
   await api.dispose();
+});
+
+test('real multichoice, attempts, reviews, stats reset and deterministic AI endpoints', async () => {
+  const author = await login('author@e2e.test');
+  const player = await login('player@e2e.test');
+  const game = await createGameViaApi(author.accessToken, 'E2E Multichoice Portal Game', 'AI source description for tests');
+  await createTaskViaApi(author.accessToken, game.id, {
+    type: 5,
+    order: 0,
+    text: 'Select all prime numbers',
+    points: 80,
+    timeLimitMs: 60000,
+    options: ['2', '4', '5'],
+    correctOptionIndex: null,
+    correctOptionIndexes: [0, 2],
+  });
+  await submitGameForVerification(author.accessToken, game.id);
+
+  const playerApi = await authed(player.accessToken);
+  const start = await playerApi.post(`/v1/games/${game.id}/start`);
+  expect(start.ok()).toBeTruthy();
+  const current = (await start.json()) as StartResponse;
+  const selectedOptionIds = current.task.options.filter(o => o.text === '2' || o.text === '5').map(o => o.id);
+  const answer = await playerApi.post(`/v1/games/${game.id}/answer`, {
+    data: { attemptId: current.attemptId, questionToken: current.questionToken, selectedOptionIds },
+  });
+  expect(answer.ok()).toBeTruthy();
+  expect(await answer.json()).toMatchObject({ finished: true, score: 80, maxScore: 80, lastAnswerCorrect: true });
+
+  const review = await playerApi.post(`/v1/games/${game.id}/reviews`, {
+    data: { rating: 5, text: 'Отличная игра с множественным выбором' },
+  });
+  expect(review.ok()).toBeTruthy();
+
+  const attempts = await playerApi.get(`/v1/games/${game.id}/attempts?sort=score_desc`);
+  expect(attempts.ok()).toBeTruthy();
+  expect((await attempts.json()).items[0]).toMatchObject({ displayName: 'Player', score: 80, maxScore: 80 });
+
+  const publicReviews = await playerApi.get(`/v1/games/${game.id}/reviews?sort=rating_desc`);
+  expect(publicReviews.ok()).toBeTruthy();
+  expect((await publicReviews.json()).items[0]).toMatchObject({ rating: 5, text: 'Отличная игра с множественным выбором' });
+  await playerApi.dispose();
+
+  const authorApi = await authed(author.accessToken);
+  const rewrite = await authorApi.post(`/v1/my/games/${game.id}/ai/rewrite/stream`, {
+    data: { field: 'description', mode: 'professional', text: 'короткое описание' },
+  });
+  expect(rewrite.ok()).toBeTruthy();
+  expect(await rewrite.text()).toContain('Профессионально');
+
+  const option = await authorApi.post(`/v1/my/games/${game.id}/ai/suggest-option`, {
+    data: {
+      game: { title: 'E2E Multichoice Portal Game', description: 'AI source description for tests', descriptionFormat: 1, themeColor: '#2563EB' },
+      task: { type: 5, order: 0, text: 'Select all prime numbers', points: 80, timeLimitMs: 60000, options: ['2', '4', '5'], correctOptionIndex: null, correctOptionIndexes: [0, 2] },
+    },
+  });
+  expect(option.ok()).toBeTruthy();
+  expect((await option.json()).text).toContain('Новый вариант');
+
+  const task = await authorApi.post(`/v1/my/games/${game.id}/ai/suggest-task`, {
+    data: {
+      game: { title: 'E2E Multichoice Portal Game', description: 'AI source description for tests', descriptionFormat: 1, themeColor: '#2563EB' },
+      tasks: [],
+    },
+  });
+  expect(task.ok()).toBeTruthy();
+  expect((await task.json()).text).toContain('AI-задача');
+
+  const resetTask = await authorApi.delete(`/v1/my/games/${game.id}/tasks/${current.task.id}/stats`);
+  expect(resetTask.ok()).toBeTruthy();
+  expect((await (await authorApi.get(`/v1/my/games/${game.id}/stats`)).json()).attemptsCount).toBe(1);
+
+  const resetAll = await authorApi.delete(`/v1/my/games/${game.id}/stats`);
+  expect(resetAll.ok()).toBeTruthy();
+  expect((await (await authorApi.get(`/v1/my/games/${game.id}/stats`)).json()).attemptsCount).toBe(0);
+  await authorApi.dispose();
 });
 
 test('real author dashboard creates tasks, verifies game and downloads CSV through UI', async ({ page }) => {
@@ -610,7 +690,7 @@ test('real player completes mixed game and result renders with leaderboard', asy
     { token: player.accessToken, gameId: game.id, payload: { finished, answers } }
   );
   await page.goto(`/game/${game.id}/result`);
-  await expect(page.getByText(/100 \/ 225|150 \/ 225|225 \/ 225/)).toBeVisible();
+  await expect(page.getByText(/140 \/ 265|190 \/ 265|265 \/ 265/)).toBeVisible();
   await expect(page.getByText('Player')).toBeVisible();
 
   await api.dispose();
@@ -656,9 +736,25 @@ test('real game play redirects anonymous users to login', async ({ page }) => {
 });
 
 test('public route shell renders home, about and not-found pages', async ({ page }) => {
+  const author = await login('author@e2e.test');
+  const player = await login('player@e2e.test');
+  const game = await createVerifiedQuizGame(author.accessToken, 'Home Featured Game');
+  const api = await authed(player.accessToken);
+  await completeGame(api, game.id);
+  await api.post(`/v1/games/${game.id}/reviews`, { data: { rating: 4, text: 'Публичный отзыв к игре' } });
+  await api.post('/v1/reviews/site', { data: { rating: 5, text: 'Публичный отзыв к KuSaFe' } });
+  await api.dispose();
+
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'KuSaFe' })).toBeVisible();
   await expect(page.getByTestId('home-feature-box')).toHaveCount(4);
+  await expect(page.getByText('Рекомендуемая игра')).toBeVisible();
+  await expect(page.getByText('Home Featured Game')).toBeVisible();
+
+  await page.goto('/reviews');
+  await expect(page.getByText('Отзывы KuSaFe')).toBeVisible();
+  await expect(page.getByText('Публичный отзыв к игре')).toBeVisible();
+  await expect(page.getByText('Публичный отзыв к KuSaFe')).toBeVisible();
 
   for (const path of ['/', '/about', '/missing-e2e-route']) {
     await page.goto(path);
