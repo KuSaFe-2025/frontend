@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import DOMPurify from 'dompurify';
+import { marked } from 'marked';
 import styles from './Quizes.module.scss';
 import { api } from '@/shared/lib';
 
@@ -7,6 +9,7 @@ type GameListItem = {
   id: string;
   title: string;
   description?: string | null;
+  descriptionFormat: number;
   tasksCount: number;
   themeColor?: string | null;
   status: number;
@@ -78,6 +81,13 @@ function statusHint(game: GameListItem) {
   return game.canEdit ? 'Черновик автора' : 'Недоступно';
 }
 
+function renderDescription(game: GameListItem) {
+  const description = (game.description ?? '').trim();
+  if (!description) return 'Описание отсутствует';
+  if (game.descriptionFormat !== 1) return description;
+  return DOMPurify.sanitize(marked.parse(description, { async: false }) as string);
+}
+
 export const Quizes = () => {
   const navigate = useNavigate();
   const [items, setItems] = useState<GameListItem[]>([]);
@@ -117,7 +127,11 @@ export const Quizes = () => {
               <div className={styles.swap}>
                 <div className={styles.title}>{game.title}</div>
                 <div className={styles.qCount}>{game.tasksCount} задач · {game.ownerDisplayName}</div>
-                <div className={styles.desc}>{(game.description ?? '').trim() || 'Описание отсутствует'}</div>
+                {game.descriptionFormat === 1 ? (
+                  <div className={`${styles.desc} ${styles.markdownDesc}`} dangerouslySetInnerHTML={{ __html: renderDescription(game) }} />
+                ) : (
+                  <div className={styles.desc}>{renderDescription(game)}</div>
+                )}
               </div>
               <div className={styles.hint}>{statusHint(game)}</div>
             </div>

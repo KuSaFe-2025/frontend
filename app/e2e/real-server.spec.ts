@@ -116,7 +116,7 @@ async function submitGameForVerification(token: string, gameId: string) {
 }
 
 async function createMixedGame(token: string) {
-  const game = await createGameViaApi(token, 'Real E2E Mixed Game');
+  const game = await createGameViaApi(token, 'Real E2E Mixed Game', '**Markdown description**\n\n- formatted item');
   const tasks: TaskUpsert[] = [
     { type: 0, order: 0, text: 'What is 2 + 2?', points: 100, timeLimitMs: 60000, options: ['4', '5'], correctOptionIndex: 0 },
     { type: 1, order: 1, text: 'The sky is blue.', points: 50, timeLimitMs: 60000, options: [], correctOptionIndex: 0 },
@@ -150,6 +150,48 @@ async function createVerifiedQuizGame(token: string, title = 'Real E2E Quiz Game
   });
   await submitGameForVerification(token, game.id);
   return game;
+}
+
+async function createVerifiedPuzzleGame(token: string, title = 'Real E2E Puzzle Game') {
+  const game = await createGameViaApi(token, title, 'Puzzle game for play page checks');
+  await createTaskViaApi(token, game.id, {
+    type: 2,
+    order: 0,
+    text: 'Put these steps in order.',
+    points: 100,
+    timeLimitMs: 60000,
+    options: ['First', 'Second'],
+    correctOptionIndex: null,
+  });
+  await submitGameForVerification(token, game.id);
+  return game;
+}
+
+async function createVerifiedOpenAnswerGame(token: string, title = 'Real E2E Open Answers Game') {
+  const game = await createGameViaApi(token, title, 'Open answer stats checks');
+  await createTaskViaApi(token, game.id, {
+    type: 3,
+    order: 0,
+    text: 'Write a multi-line answer.',
+    points: 0,
+    timeLimitMs: 60000,
+    options: [],
+    correctOptionIndex: null,
+  });
+  await submitGameForVerification(token, game.id);
+  return game;
+}
+
+async function completeOpenAnswerAttempt(token: string, gameId: string, textAnswer: string) {
+  const api = await authed(token);
+  const start = await api.post(`/v1/games/${gameId}/start`);
+  if (!start.ok()) throw new Error(`${start.status()} ${await start.text()}`);
+  const current = (await start.json()) as StartResponse;
+  const answer = await api.post(`/v1/games/${gameId}/answer`, {
+    data: { attemptId: current.attemptId, questionToken: current.questionToken, textAnswer },
+  });
+  if (!answer.ok()) throw new Error(`${answer.status()} ${await answer.text()}`);
+  await api.dispose();
 }
 
 async function answerCurrent(api: APIRequestContext, gameId: string, current: StartResponse | { attemptId: string; questionToken: string; task: PublicTask }) {
@@ -223,9 +265,16 @@ test('real auth, catalog, game details and author moderation flow', async ({ pag
 
   await page.goto('/games');
   await expect(page.getByText(game.title)).toBeVisible();
+  await page.getByText(game.title).hover();
+  await expect(page.locator('strong').filter({ hasText: 'Markdown description' })).toBeVisible();
   await page.getByText(game.title).click();
   await expect(page.getByText('VERIFIED')).toBeVisible();
-  await expect(page.getByText('Approved by deterministic E2E moderation')).toBeVisible();
+  await expect(page.getByText('Approved by KuSaFe')).toBeVisible();
+  await expect(page.locator('strong').filter({ hasText: 'Markdown description' })).toBeVisible();
+  await expect(page.getByText('formatted item')).toBeVisible();
+  await expect(page.getByText('Викторина')).toBeVisible();
+  await expect(page.getByText('Порядок')).toBeVisible();
+  await expect(page.getByText('Открытый ответ')).toBeVisible();
 });
 
 test('real registration, duplicate registration and refresh-token interceptor', async ({ page }) => {
@@ -317,32 +366,89 @@ test('real author dashboard creates tasks, verifies game and downloads CSV throu
   await page.getByTestId('create-game-save').click();
 
   await expect(page.getByTestId('game-list-item').filter({ hasText: 'Dashboard UI Game' })).toBeVisible();
+  await expect(page.getByTestId('dashboard-tab-info')).toHaveAttribute('aria-selected', 'true');
+  await page.getByTestId('dashboard-tab-tasks').click();
   await expect(page.getByTestId('open-create-task')).toBeVisible();
 
   await page.getByTestId('open-create-task').click();
   await page.getByTestId('task-text-input').fill('Dashboard quiz question');
   await page.getByTestId('task-points-input').fill('25');
-  await page.getByTestId('task-option-0').fill('Correct');
+  await expect(page.getByTestId('task-time-limit-input')).toHaveValue('60');
+  await page.getByTestId('task-time-limit-input').fill('45');
+  await page.getByTestId('task-option-0').click();
+  await page.getByTestId('task-option-0').pressSequentially('Correct', { delay: 5 });
+  await expect(page.getByTestId('task-option-0')).toHaveValue('Correct');
+  await expect(page.getByTestId('task-option-0')).toBeFocused();
   await page.getByTestId('task-option-1').fill('Wrong');
   await page.getByTestId('save-task').click();
   await expect(page.getByText('Dashboard quiz question')).toBeVisible();
+  await expect(page.getByText(/25 очков · 45 с/)).toBeVisible();
 
   await page.getByTestId('open-create-task').click();
   await page.getByTestId('task-type-select').selectOption('4');
+  await expect(page.getByTestId('task-order-input')).toHaveValue('1');
+  await page.getByTestId('task-order-up').click();
+  await expect(page.getByTestId('task-order-input')).toHaveValue('0');
+  await page.getByTestId('task-order-down').click();
+  await expect(page.getByTestId('task-order-input')).toHaveValue('1');
   await page.getByTestId('task-text-input').fill('Dashboard poll question');
   await page.getByTestId('task-option-0').fill('Poll A');
   await page.getByTestId('task-option-1').fill('Poll B');
   await page.getByTestId('save-task').click();
   await expect(page.getByText('Dashboard poll question')).toBeVisible();
 
-  await page.getByTestId('submit-verification').click();
-  await expect(page.getByTestId('game-status')).toHaveText('VERIFIED');
-  await expect(page.getByText('Approved by deterministic E2E moderation')).toBeVisible();
+  await page.getByTestId('open-create-task').click();
+  await page.getByTestId('task-type-select').selectOption('2');
+  await page.getByTestId('task-text-input').fill('Dashboard order question');
+  await page.getByTestId('task-option-0').click();
+  await page.getByTestId('task-option-0').pressSequentially('First step', { delay: 5 });
+  await expect(page.getByTestId('task-option-0')).toHaveValue('First step');
+  await expect(page.getByTestId('task-option-0')).toBeFocused();
+  await page.getByTestId('task-option-1').fill('Second step');
 
+  const orderInputBox = await page.getByTestId('task-option-0').boundingBox();
+  const removeButtonBox = await page.getByTestId('remove-task-option-0').boundingBox();
+  expect(orderInputBox?.width ?? 0).toBeGreaterThan((removeButtonBox?.width ?? 0) * 3);
+
+  await page.getByTestId('save-task').click();
+  await expect(page.getByText('Dashboard order question')).toBeVisible();
+
+  await page.getByTestId('dashboard-tab-info').click();
+  await page.getByTestId('submit-verification').click();
+  await expect(page.getByTestId('game-status')).toHaveText('Проверена');
+  await page.getByTestId('game-title-input').click();
+  await page.getByTestId('game-title-input').press('End');
+  await page.getByTestId('game-title-input').pressSequentially('!', { delay: 5 });
+  await expect(page.getByRole('dialog')).toContainText('Статус проверки будет сброшен');
+  await page.getByTestId('verified-edit-confirm').click();
+  await expect(page.getByTestId('game-title-input')).toHaveValue('Dashboard UI Game!');
+
+  await page.getByTestId('dashboard-tab-stats').click();
   const downloadPromise = page.waitForEvent('download');
   await page.getByTestId('export-csv').click();
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toContain('Dashboard UI Game');
+});
+
+test('real puzzle play page uses localized header and wider layout', async ({ page }) => {
+  const author = await login('author@e2e.test');
+  const player = await login('player@e2e.test');
+  const game = await createVerifiedPuzzleGame(author.accessToken);
+
+  await seedBrowserAuth(page, player.accessToken);
+  await page.goto(`/game/${game.id}/play`);
+
+  await expect(page.getByTestId('task-type-badge')).toHaveText('Порядок');
+  await expect(page.getByText('Задание 1 из 1')).toBeVisible();
+  await expect(page.getByText('100 очков')).toBeVisible();
+
+  const cardBox = await page.getByTestId('play-card').boundingBox();
+  expect(cardBox?.width ?? 0).toBeGreaterThan(1000);
+  const badgeBox = await page.getByTestId('task-type-badge').boundingBox();
+  const titleBox = await page.getByTestId('task-progress-title').boundingBox();
+  const pointsBox = await page.getByTestId('task-points-label').boundingBox();
+  expect(badgeBox?.x ?? 0).toBeLessThan(titleBox?.x ?? 0);
+  expect((pointsBox?.x ?? 0) + (pointsBox?.width ?? 0)).toBeGreaterThan((titleBox?.x ?? 0) + (titleBox?.width ?? 0));
 });
 
 test('real admin can manage visibility status', async () => {
@@ -367,6 +473,28 @@ test('real admin can manage visibility status', async () => {
   await adminApi.dispose();
 });
 
+test('real owner stats paginate and expand open-ended answers through UI', async ({ page }) => {
+  const author = await login('author@e2e.test');
+  const player = await login('player@e2e.test');
+  const game = await createVerifiedOpenAnswerGame(author.accessToken);
+
+  for (let i = 1; i <= 6; i++) {
+    await completeOpenAnswerAttempt(player.accessToken, game.id, `Open answer ${i}\nfull detail line ${i}`);
+  }
+
+  await seedBrowserAuth(page, author.accessToken);
+  await page.goto('/my-games');
+  await page.getByTestId('game-list-item').filter({ hasText: 'Real E2E Open Answers Game' }).first().click();
+  await page.getByTestId('dashboard-tab-stats').click();
+
+  await expect(page.getByTestId('open-answer-box')).toHaveCount(5);
+  await expect(page.getByText('full detail line 6')).toHaveCount(0);
+  await page.getByTestId('open-answer-toggle').first().click();
+  await expect(page.getByText('full detail line 6')).toBeVisible();
+  await page.getByTestId('load-open-answers-more').click();
+  await expect(page.getByTestId('open-answer-box')).toHaveCount(6);
+});
+
 test('real admin guard and dashboard status controls work through UI', async ({ page }) => {
   await page.goto('/admin');
   await expect(page).toHaveURL(/\/login/);
@@ -387,11 +515,11 @@ test('real admin guard and dashboard status controls work through UI', async ({ 
   await expect(adminPage.getByText('Admin UI Status Game')).toBeVisible();
 
   await adminPage.getByTestId('admin-reject').click();
-  await expect(adminPage.getByTestId('game-status')).toHaveText('REJECTED');
+  await expect(adminPage.getByTestId('game-status')).toHaveText('Отклонена');
   await adminPage.getByTestId('admin-unverify').click();
-  await expect(adminPage.getByTestId('game-status')).toHaveText('UNVERIFIED');
+  await expect(adminPage.getByTestId('game-status')).toHaveText('Черновик');
   await adminPage.getByTestId('admin-verify').click();
-  await expect(adminPage.getByTestId('game-status')).toHaveText('VERIFIED');
+  await expect(adminPage.getByTestId('game-status')).toHaveText('Проверена');
 });
 
 test('real visibility rules hide non-public games from anonymous and other players', async ({ page }) => {

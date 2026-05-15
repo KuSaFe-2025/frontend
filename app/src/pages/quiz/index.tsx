@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import DOMPurify from 'dompurify';
+import { marked } from 'marked';
 import styles from './Quiz.module.scss';
 import { api, getAccessToken } from '@/shared/lib';
 import { LeaderboardCard } from '@/components/LeaderboardCard/LeaderboardCard';
@@ -47,7 +49,7 @@ function buildGradient(themeColor?: string | null) {
 }
 
 function taskTypeLabel(type: number) {
-  return ['Quiz', 'True/False', 'Puzzle', 'Open-ended', 'Poll'][type] ?? 'Task';
+  return ['Викторина', 'Верно/неверно', 'Порядок', 'Открытый ответ', 'Опрос'][type] ?? 'Задача';
 }
 
 function statusLabel(status: number) {
@@ -64,6 +66,11 @@ export const QuizPage = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const bg = useMemo(() => buildGradient(game?.themeColor), [game?.themeColor]);
+  const description = game?.description?.trim();
+  const markdownDescription = useMemo(() => {
+    if (!description || game?.descriptionFormat !== 1) return null;
+    return DOMPurify.sanitize(marked.parse(description, { async: false }) as string);
+  }, [description, game?.descriptionFormat]);
 
   const loadGame = async () => {
     if (!gameId) return;
@@ -148,7 +155,15 @@ export const QuizPage = () => {
             <section className={styles.leftCard} style={{ backgroundImage: bg }}>
               <div className={styles.leftInner}>
                 <div className={styles.title}>{game.title}</div>
-                <div className={styles.desc}>{game.description?.trim() || 'Описание отсутствует.'}</div>
+                {description ? (
+                  markdownDescription ? (
+                    <div className={`${styles.desc} ${styles.markdown}`} dangerouslySetInnerHTML={{ __html: markdownDescription }} />
+                  ) : (
+                    <div className={styles.desc}>{description}</div>
+                  )
+                ) : (
+                  <div className={styles.desc}>Описание отсутствует.</div>
+                )}
 
                 <div className={styles.metaRow}>
                   <div className={styles.metaItem}><span className={styles.metaLabel}>Автор</span><span className={styles.metaValue}>{game.ownerDisplayName}</span></div>
@@ -156,7 +171,7 @@ export const QuizPage = () => {
                   <div className={styles.metaItem}><span className={styles.metaLabel}>Задач</span><span className={styles.metaValue}>{game.tasksCount}</span></div>
                 </div>
 
-                <div className={styles.metaRow}>
+                <div className={`${styles.metaRow} ${styles.typeCountsRow}`}>
                   {game.taskTypeCounts.map(item => (
                     <div className={styles.metaItem} key={`${item.type}-${item.count}`}>
                       <span className={styles.metaLabel}>{taskTypeLabel(item.type)}</span>
@@ -165,9 +180,17 @@ export const QuizPage = () => {
                   ))}
                 </div>
 
-                {game.moderationDecision && (
-                  <div className={styles.desc}>
-                    {game.moderationDecision} YES {game.moderationYesVotes} / NO {game.moderationNoVotes}
+                {game.status === 1 && (
+                  <div className={styles.approvedBadge}>
+                    <span className={styles.approvedDot} aria-hidden="true" />
+                    <span>Approved by KuSaFe</span>
+                  </div>
+                )}
+
+                {game.status === 3 && game.moderationDecision && (
+                  <div className={styles.rejectedBadge}>
+                    <span className={styles.rejectedDot} aria-hidden="true" />
+                    <span>{game.moderationDecision}</span>
                   </div>
                 )}
 

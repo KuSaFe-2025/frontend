@@ -126,6 +126,33 @@
   transform: translateY(6px);
 }
 
+.markdownDesc {
+  p,
+  ul,
+  ol,
+  blockquote {
+    margin: 0 0 8px;
+  }
+
+  ul,
+  ol {
+    padding-left: 18px;
+  }
+
+  :first-child {
+    margin-top: 0;
+  }
+
+  :last-child {
+    margin-bottom: 0;
+  }
+
+  strong,
+  b {
+    font-weight: 900;
+  }
+}
+
 .card:hover .title {
   opacity: 0;
   transform: translateY(-6px);

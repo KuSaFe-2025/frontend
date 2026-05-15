@@ -76,17 +76,17 @@ function getServerOffsetMsFromHeaders(headers: any) {
 function taskTypeLabel(type: number) {
   switch (type) {
     case 0:
-      return 'Quiz';
+      return 'Викторина';
     case 1:
-      return 'True/False';
+      return 'Верно/неверно';
     case 2:
-      return 'Puzzle';
+      return 'Порядок';
     case 3:
-      return 'Open-ended';
+      return 'Открытый ответ';
     case 4:
-      return 'Poll';
+      return 'Опрос';
     default:
-      return 'Task';
+      return 'Задача';
   }
 }
 
@@ -333,7 +333,7 @@ export const QuizPlayPage = () => {
       <main className={styles.main}>
         <div className={styles.container}>
           <div className={styles.stack}>
-            <div className={styles.card}>
+            <div data-testid="play-card" className={styles.card}>
               <div className={styles.topRow}>
                 {totalTasks ? (
                   <div className={styles.steps}>
@@ -360,10 +360,10 @@ export const QuizPlayPage = () => {
               </div>
 
               <div className={styles.center}>
-                <div className={styles.titleRow}>
-                  <div className={styles.metaLabel}>{taskTypeLabel(task.type)}</div>
-                  <div className={styles.qTitle}>Задание №{task.order + 1}</div>
-                  <div className={styles.points}>{task.points > 0 ? `${task.points} очков` : 'без оценки'}</div>
+                <div className={styles.questionHeader}>
+                  <div data-testid="task-type-badge" className={styles.typeBadge}>{taskTypeLabel(task.type)}</div>
+                  <div data-testid="task-progress-title" className={styles.qTitle}>Задание {task.order + 1}{totalTasks ? ` из ${totalTasks}` : ''}</div>
+                  <div data-testid="task-points-label" className={styles.points}>{task.points > 0 ? `${task.points} очков` : 'без оценки'}</div>
                 </div>
 
                 <div className={styles.qText}>{task.text}</div>
