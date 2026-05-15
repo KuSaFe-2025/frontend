@@ -342,6 +342,15 @@ test('real author CRUD, stats and CSV export endpoints', async () => {
   });
   expect(taskUpdate.ok()).toBeTruthy();
 
+  const taskUpdateWithNewOption = await api.put(`/v1/my/games/${game.id}/tasks/${createdTask.id}`, {
+    data: { type: 4, order: 0, text: 'Poll A, B or C', points: 0, timeLimitMs: 30000, options: ['A', 'B', 'C'], correctOptionIndex: null },
+  });
+  expect(taskUpdateWithNewOption.ok()).toBeTruthy();
+
+  const reloaded = await api.get(`/v1/my/games/${game.id}`);
+  expect(reloaded.ok()).toBeTruthy();
+  expect(((await reloaded.json()) as EditorGame).tasks[0].options.filter(option => option.text === 'C')).toHaveLength(1);
+
   const stats = await api.get(`/v1/my/games/${game.id}/stats`);
   expect(stats.ok()).toBeTruthy();
   expect(await stats.json()).toMatchObject({ attemptsCount: 0 });
