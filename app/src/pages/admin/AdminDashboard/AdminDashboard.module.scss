@@ -262,3 +262,19 @@
   width: 16px;
   height: 16px;
 }
+
+.bar {
+  margin-top: 8px;
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(17, 24, 39, 0.08);
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #16a34a;
+}

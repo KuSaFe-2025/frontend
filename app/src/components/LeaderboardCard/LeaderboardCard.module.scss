@@ -69,9 +69,22 @@
 
 .name {
   font-weight: 700;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.name,
+.meta {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.meta {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.52);
 }
 
 .time {

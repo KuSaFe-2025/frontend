@@ -8,10 +8,13 @@ type GameListItem = {
   id: string;
   title: string;
   description?: string | null;
-  descriptionFormat?: number;
   tasksCount: number;
   themeColor?: string | null;
   status: number;
+  lastModeratedAtUtc?: string | null;
+  moderationDecision?: string | null;
+  moderationYesVotes: number;
+  moderationNoVotes: number;
   ownerDisplayName: string;
 };
 
@@ -28,15 +31,9 @@ type TaskDto = {
   options: OptionDto[];
 };
 
-type GameEditorDto = {
-  id: string;
-  title: string;
-  description?: string | null;
+type GameEditorDto = GameListItem & {
   descriptionFormat: number;
-  themeColor?: string | null;
-  status: number;
   ownerUserId: string;
-  ownerDisplayName: string;
   createdAtUtc: string;
   updatedAtUtc: string;
   tasks: TaskDto[];
@@ -65,7 +62,10 @@ type StatsTask = {
   type: number;
   attempts: number;
   correctAnswers: number;
+  incorrectAnswers: number;
+  neutralAnswers: number;
   totalAnswers: number;
+  accuracyRate: number;
   recentOpenAnswers: string[];
   pollOptions: { optionId: string; text: string; votes: number }[];
 };
@@ -86,20 +86,27 @@ function normalizeHex(input: string) {
 }
 
 function taskTypeLabel(type: number) {
-  switch (type) {
-    case 0:
-      return 'Quiz';
-    case 1:
-      return 'True/False';
-    case 2:
-      return 'Puzzle';
-    case 3:
-      return 'Open-ended';
-    case 4:
-      return 'Poll';
-    default:
-      return 'Task';
-  }
+  return ['Quiz', 'True/False', 'Puzzle', 'Open-ended', 'Poll'][type] ?? 'Task';
+}
+
+function statusLabel(status: number) {
+  return ['UNVERIFIED', 'VERIFIED', 'PENDING', 'REJECTED'][status] ?? 'UNVERIFIED';
+}
+
+function pct(value: number) {
+  return `${Math.round(value * 100)}%`;
+}
+
+function defaultTaskForm(order: number): TaskUpsertRequest {
+  return {
+    type: 0,
+    order,
+    text: '',
+    points: 100,
+    timeLimitMs: 60000,
+    options: ['', ''],
+    correctOptionIndex: 0,
+  };
 }
 
 export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
@@ -108,11 +115,13 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [game, setGame] = useState<GameEditorDto | null>(null);
   const [stats, setStats] = useState<GameStats | null>(null);
-
   const [loadingList, setLoadingList] = useState(false);
   const [loadingGame, setLoadingGame] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [creatingNew, setCreatingNew] = useState(false);
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
+  const [taskEditId, setTaskEditId] = useState<string | null>(null);
 
   const [gameForm, setGameForm] = useState<GameUpsertRequest>({
     title: '',
@@ -120,20 +129,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
     descriptionFormat: 1,
     themeColor: '#7C3AED',
   });
-
-  const [taskFormOpen, setTaskFormOpen] = useState(false);
-  const [taskEditId, setTaskEditId] = useState<string | null>(null);
-  const [taskForm, setTaskForm] = useState<TaskUpsertRequest>({
-    type: 0,
-    order: 0,
-    text: '',
-    points: 100,
-    timeLimitMs: 60000,
-    options: ['', ''],
-    correctOptionIndex: 0,
-  });
-
-  const [creatingNew, setCreatingNew] = useState(false);
+  const [taskForm, setTaskForm] = useState<TaskUpsertRequest>(defaultTaskForm(0));
 
   const refreshList = async () => {
     setLoadingList(true);
@@ -141,9 +137,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
     try {
       const res = await api.get<GameListItem[]>(basePath);
       setList(res.data ?? []);
-      if (!creatingNew && !selectedId && (res.data?.length ?? 0) > 0) {
-        setSelectedId(res.data[0].id);
-      }
+      if (!creatingNew && !selectedId && (res.data?.length ?? 0) > 0) setSelectedId(res.data[0].id);
     } catch (e: any) {
       setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось загрузить список игр'));
     } finally {
@@ -193,26 +187,16 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
     setStats(null);
     setTaskFormOpen(false);
     setTaskEditId(null);
-    setGameForm({
-      title: '',
-      description: '',
-      descriptionFormat: 1,
-      themeColor: '#7C3AED',
-    });
+    setGameForm({ title: '', description: '', descriptionFormat: 1, themeColor: '#7C3AED' });
   };
 
   const createGame = async () => {
     const title = (gameForm.title ?? '').trim();
     if (!title) return setErr('Title is required.');
-
     setBusy(true);
     setErr(null);
     try {
-      const res = await api.post<{ id: string }>(basePath, {
-        ...gameForm,
-        title,
-        themeColor: normalizeHex(gameForm.themeColor ?? ''),
-      });
+      const res = await api.post<{ id: string }>(basePath, { ...gameForm, title, themeColor: normalizeHex(gameForm.themeColor ?? '') });
       await refreshList();
       setCreatingNew(false);
       setSelectedId(res.data.id);
@@ -228,11 +212,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
     setBusy(true);
     setErr(null);
     try {
-      await api.put(`${basePath}/${game.id}`, {
-        ...gameForm,
-        title: (gameForm.title ?? '').trim(),
-        themeColor: normalizeHex(gameForm.themeColor ?? ''),
-      });
+      await api.put(`${basePath}/${game.id}`, { ...gameForm, title: (gameForm.title ?? '').trim(), themeColor: normalizeHex(gameForm.themeColor ?? '') });
       await loadGame(game.id);
       await refreshList();
     } catch (e: any) {
@@ -281,6 +261,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
     try {
       await api.post(`${basePath}/${game.id}/submit-for-verification`, {});
       await loadGame(game.id);
+      await refreshList();
     } catch (e: any) {
       setErr(String(e?.response?.data ?? e?.message ?? 'Не удалось отправить игру на проверку'));
     } finally {
@@ -288,18 +269,20 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
     }
   };
 
+  const exportCsv = async () => {
+    if (!game) return;
+    const res = await api.get(`${basePath}/${game.id}/stats/export.csv`, { responseType: 'blob' });
+    const url = URL.createObjectURL(res.data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${game.title || 'game'}-results.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const openCreateTask = () => {
-    const order = game?.tasks?.length ?? 0;
     setTaskEditId(null);
-    setTaskForm({
-      type: 0,
-      order,
-      text: '',
-      points: 100,
-      timeLimitMs: 60000,
-      options: ['', ''],
-      correctOptionIndex: 0,
-    });
+    setTaskForm(defaultTaskForm(game?.tasks?.length ?? 0));
     setTaskFormOpen(true);
   };
 
@@ -323,7 +306,6 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
     if (!game) return;
     setBusy(true);
     setErr(null);
-
     const payload: TaskUpsertRequest = {
       type: Number(taskForm.type),
       order: Number(taskForm.order),
@@ -331,16 +313,11 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
       points: Number(taskForm.points),
       timeLimitMs: Number(taskForm.timeLimitMs),
       options: (taskForm.options ?? []).map(x => (x ?? '').trim()).filter(Boolean),
-      correctOptionIndex:
-        taskForm.type === 0 || taskForm.type === 1 ? Number(taskForm.correctOptionIndex ?? 0) : null,
+      correctOptionIndex: taskForm.type === 0 || taskForm.type === 1 ? Number(taskForm.correctOptionIndex ?? 0) : null,
     };
-
     try {
-      if (taskEditId) {
-        await api.put(`${basePath}/${game.id}/tasks/${taskEditId}`, payload);
-      } else {
-        await api.post(`${basePath}/${game.id}/tasks`, payload);
-      }
+      if (taskEditId) await api.put(`${basePath}/${game.id}/tasks/${taskEditId}`, payload);
+      else await api.post(`${basePath}/${game.id}/tasks`, payload);
       await loadGame(game.id);
       await refreshList();
       setTaskFormOpen(false);
@@ -368,109 +345,85 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
   };
 
   const right = useMemo(() => {
-    if (loadingGame) return <div className={styles.state}>Загрузка игры…</div>;
+    if (loadingGame) return <div className={styles.state}>Загрузка игры...</div>;
     if (!game && !creatingNew) return <div className={styles.state}>Выберите игру слева</div>;
 
     return (
       <div className={styles.panel}>
         <div className={styles.block}>
           <div className={styles.blockTitle}>Игра</div>
-
           <div className={styles.row}>
             <label className={styles.label}>Title</label>
-            <input
-              className={styles.input}
-              value={gameForm.title}
-              onChange={e => setGameForm(p => ({ ...p, title: e.target.value }))}
-            />
+            <input className={styles.input} value={gameForm.title} onChange={e => setGameForm(p => ({ ...p, title: e.target.value }))} />
           </div>
-
           <div className={styles.row}>
             <label className={styles.label}>Description</label>
-            <textarea
-              className={styles.textarea}
-              value={gameForm.description ?? ''}
-              onChange={e => setGameForm(p => ({ ...p, description: e.target.value }))}
-            />
+            <textarea className={styles.textarea} value={gameForm.description ?? ''} onChange={e => setGameForm(p => ({ ...p, description: e.target.value }))} />
           </div>
-
           <div className={styles.row2}>
             <div className={styles.col}>
               <label className={styles.label}>DescriptionFormat</label>
-              <select
-                className={styles.input}
-                value={gameForm.descriptionFormat}
-                onChange={e => setGameForm(p => ({ ...p, descriptionFormat: Number(e.target.value) }))}
-              >
+              <select className={styles.input} value={gameForm.descriptionFormat} onChange={e => setGameForm(p => ({ ...p, descriptionFormat: Number(e.target.value) }))}>
                 <option value={0}>Plain</option>
                 <option value={1}>Markdown</option>
               </select>
             </div>
-
             <div className={styles.col}>
               <label className={styles.label}>ThemeColor</label>
-              <input
-                className={styles.input}
-                value={gameForm.themeColor ?? ''}
-                onChange={e => setGameForm(p => ({ ...p, themeColor: e.target.value }))}
-                placeholder="#7C3AED"
-              />
+              <input className={styles.input} value={gameForm.themeColor ?? ''} onChange={e => setGameForm(p => ({ ...p, themeColor: e.target.value }))} />
             </div>
-
             <div className={styles.col}>
               <label className={styles.label}>Status</label>
-              <div className={styles.input}>{game ? (game.status === 1 ? 'VERIFIED' : 'UNVERIFIED') : 'NEW'}</div>
+              <div className={styles.input}>{game ? statusLabel(game.status) : 'NEW'}</div>
             </div>
           </div>
 
           {game && (
-            <div className={styles.row2}>
-              <div className={styles.col}>
-                <label className={styles.label}>Owner</label>
-                <div className={styles.input}>{game.ownerDisplayName}</div>
+            <>
+              <div className={styles.row2}>
+                <div className={styles.col}>
+                  <label className={styles.label}>Owner</label>
+                  <div className={styles.input}>{game.ownerDisplayName}</div>
+                </div>
+                <div className={styles.col}>
+                  <label className={styles.label}>Created</label>
+                  <div className={styles.input}>{new Date(game.createdAtUtc).toLocaleString()}</div>
+                </div>
+                <div className={styles.col}>
+                  <label className={styles.label}>Updated</label>
+                  <div className={styles.input}>{new Date(game.updatedAtUtc).toLocaleString()}</div>
+                </div>
               </div>
-              <div className={styles.col}>
-                <label className={styles.label}>Created</label>
-                <div className={styles.input}>{new Date(game.createdAtUtc).toLocaleString()}</div>
+              <div className={styles.row}>
+                <label className={styles.label}>Moderation</label>
+                <div className={styles.input}>
+                  {game.moderationDecision || 'Проверка ещё не выполнялась'}
+                  {game.lastModeratedAtUtc ? ` · ${new Date(game.lastModeratedAtUtc).toLocaleString()}` : ''}
+                  {game.moderationYesVotes || game.moderationNoVotes ? ` · YES ${game.moderationYesVotes} / NO ${game.moderationNoVotes}` : ''}
+                </div>
               </div>
-              <div className={styles.col}>
-                <label className={styles.label}>Updated</label>
-                <div className={styles.input}>{new Date(game.updatedAtUtc).toLocaleString()}</div>
-              </div>
-            </div>
+            </>
           )}
 
           <div className={styles.actions}>
             {creatingNew ? (
               <>
-                <button className={styles.primary} disabled={busy} onClick={createGame} type="button">
-                  Создать
-                </button>
-                <button className={styles.secondary} disabled={busy} onClick={() => setCreatingNew(false)} type="button">
-                  Отмена
-                </button>
+                <button className={styles.primary} disabled={busy} onClick={createGame} type="button">Создать</button>
+                <button className={styles.secondary} disabled={busy} onClick={() => setCreatingNew(false)} type="button">Отмена</button>
               </>
             ) : (
               <>
-                <button className={styles.primary} disabled={busy} onClick={saveGame} type="button">
-                  Сохранить
-                </button>
-                <button className={styles.danger} disabled={busy} onClick={deleteGame} type="button">
-                  Удалить
-                </button>
-                {mode === 'mine' && game && game.status !== 1 && (
-                  <button className={styles.secondary} disabled={busy} onClick={submitForVerification} type="button">
-                    На проверку
-                  </button>
+                <button className={styles.primary} disabled={busy} onClick={saveGame} type="button">Сохранить</button>
+                <button className={styles.danger} disabled={busy} onClick={deleteGame} type="button">Удалить</button>
+                {mode === 'mine' && game && game.status !== 1 && game.status !== 2 && (
+                  <button className={styles.secondary} disabled={busy} onClick={submitForVerification} type="button">На проверку</button>
                 )}
+                {game && <button className={styles.secondary} disabled={busy} onClick={exportCsv} type="button">CSV</button>}
                 {mode === 'admin' && game && (
                   <>
-                    <button className={styles.secondary} disabled={busy} onClick={() => setStatus(1)} type="button">
-                      Verify
-                    </button>
-                    <button className={styles.secondary} disabled={busy} onClick={() => setStatus(0)} type="button">
-                      Unverify
-                    </button>
+                    <button className={styles.secondary} disabled={busy} onClick={() => setStatus(1)} type="button">Verify</button>
+                    <button className={styles.secondary} disabled={busy} onClick={() => setStatus(0)} type="button">Unverify</button>
+                    <button className={styles.secondary} disabled={busy} onClick={() => setStatus(3)} type="button">Reject</button>
                   </>
                 )}
               </>
@@ -481,53 +434,33 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
         <div className={styles.block}>
           <div className={styles.blockHead}>
             <div className={styles.blockTitle}>Задачи</div>
-            {!creatingNew && (
-              <button className={styles.secondary} disabled={busy} onClick={openCreateTask} type="button">
-                + Добавить
-              </button>
-            )}
+            {!creatingNew && <button className={styles.secondary} disabled={busy} onClick={openCreateTask} type="button">+ Добавить</button>}
           </div>
-
           <div className={styles.questions}>
-            {(game?.tasks ?? [])
-              .slice()
-              .sort((a, b) => a.order - b.order)
-              .map(task => (
-                <div key={task.id} className={styles.qRow}>
-                  <div className={styles.qMain}>
-                    <div className={styles.qTop}>
-                      <div className={styles.qOrder}>#{task.order + 1}</div>
-                      <div className={styles.qMeta}>
-                        {taskTypeLabel(task.type)} · {task.points} очков · {Math.round(task.timeLimitMs / 1000)}с
-                      </div>
-                    </div>
-                    <div className={styles.qText}>{task.text}</div>
+            {(game?.tasks ?? []).slice().sort((a, b) => a.order - b.order).map(task => (
+              <div key={task.id} className={styles.qRow}>
+                <div className={styles.qMain}>
+                  <div className={styles.qTop}>
+                    <div className={styles.qOrder}>#{task.order + 1}</div>
+                    <div className={styles.qMeta}>{taskTypeLabel(task.type)} · {task.points} очков · {Math.round(task.timeLimitMs / 1000)}с</div>
                   </div>
-
-                  <div className={styles.qBtns}>
-                    <button className={styles.small} disabled={busy} onClick={() => openEditTask(task)} type="button">
-                      Edit
-                    </button>
-                    <button className={styles.smallDanger} disabled={busy} onClick={() => deleteTask(task.id)} type="button">
-                      Delete
-                    </button>
-                  </div>
+                  <div className={styles.qText}>{task.text}</div>
                 </div>
-              ))}
+                <div className={styles.qBtns}>
+                  <button className={styles.small} disabled={busy} onClick={() => openEditTask(task)} type="button">Edit</button>
+                  <button className={styles.smallDanger} disabled={busy} onClick={() => deleteTask(task.id)} type="button">Delete</button>
+                </div>
+              </div>
+            ))}
           </div>
 
           {taskFormOpen && (
             <div className={styles.editor}>
               <div className={styles.editorTitle}>{taskEditId ? 'Редактирование задачи' : 'Новая задача'}</div>
-
               <div className={styles.row2}>
                 <div className={styles.col}>
                   <label className={styles.label}>Type</label>
-                  <select
-                    className={styles.input}
-                    value={taskForm.type}
-                    onChange={e => setTaskForm(p => ({ ...p, type: Number(e.target.value) }))}
-                  >
+                  <select className={styles.input} value={taskForm.type} onChange={e => setTaskForm(p => ({ ...p, type: Number(e.target.value) }))}>
                     <option value={0}>Quiz</option>
                     <option value={1}>True/False</option>
                     <option value={2}>Puzzle</option>
@@ -544,19 +477,16 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
                   <input className={styles.input} type="number" value={taskForm.timeLimitMs} onChange={e => setTaskForm(p => ({ ...p, timeLimitMs: Number(e.target.value) }))} />
                 </div>
               </div>
-
               <div className={styles.row}>
                 <label className={styles.label}>Text</label>
                 <textarea className={styles.textarea} value={taskForm.text} onChange={e => setTaskForm(p => ({ ...p, text: e.target.value }))} />
               </div>
-
               {taskForm.type !== 3 && taskForm.type !== 4 && (
                 <div className={styles.row}>
                   <label className={styles.label}>Points</label>
                   <input className={styles.input} type="number" value={taskForm.points} onChange={e => setTaskForm(p => ({ ...p, points: Number(e.target.value) }))} />
                 </div>
               )}
-
               {taskForm.type !== 3 && (
                 <div className={styles.row}>
                   <div className={styles.label}>Options</div>
@@ -564,12 +494,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
                     {(taskForm.type === 1 ? ['Правда', 'Ложь'] : taskForm.options).map((value, index) => (
                       <div key={`${index}-${value}`} className={styles.optRow}>
                         {(taskForm.type === 0 || taskForm.type === 1) && (
-                          <input
-                            className={styles.optRadio}
-                            type="radio"
-                            checked={Number(taskForm.correctOptionIndex ?? 0) === index}
-                            onChange={() => setTaskForm(p => ({ ...p, correctOptionIndex: index }))}
-                          />
+                          <input className={styles.optRadio} type="radio" checked={Number(taskForm.correctOptionIndex ?? 0) === index} onChange={() => setTaskForm(p => ({ ...p, correctOptionIndex: index }))} />
                         )}
                         <input
                           className={styles.input}
@@ -582,38 +507,23 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
                           }}
                         />
                         {taskForm.type !== 1 && (
-                          <button
-                            className={styles.smallDanger}
-                            type="button"
-                            disabled={(taskForm.options?.length ?? 0) <= 2}
-                            onClick={() => {
-                              const next = (taskForm.options ?? []).slice();
-                              next.splice(index, 1);
-                              setTaskForm(p => ({ ...p, options: next }));
-                            }}
-                          >
-                            -
-                          </button>
+                          <button className={styles.smallDanger} type="button" disabled={(taskForm.options?.length ?? 0) <= 2} onClick={() => {
+                            const next = (taskForm.options ?? []).slice();
+                            next.splice(index, 1);
+                            setTaskForm(p => ({ ...p, options: next }));
+                          }}>-</button>
                         )}
                       </div>
                     ))}
-
                     {taskForm.type !== 1 && taskForm.type !== 3 && (
-                      <button className={styles.secondary} type="button" onClick={() => setTaskForm(p => ({ ...p, options: [...p.options, ''] }))}>
-                        + Option
-                      </button>
+                      <button className={styles.secondary} type="button" onClick={() => setTaskForm(p => ({ ...p, options: [...p.options, ''] }))}>+ Option</button>
                     )}
                   </div>
                 </div>
               )}
-
               <div className={styles.actions}>
-                <button className={styles.primary} disabled={busy} onClick={saveTask} type="button">
-                  Сохранить задачу
-                </button>
-                <button className={styles.secondary} disabled={busy} onClick={() => setTaskFormOpen(false)} type="button">
-                  Закрыть
-                </button>
+                <button className={styles.primary} disabled={busy} onClick={saveTask} type="button">Сохранить задачу</button>
+                <button className={styles.secondary} disabled={busy} onClick={() => setTaskFormOpen(false)} type="button">Закрыть</button>
               </div>
             </div>
           )}
@@ -623,39 +533,22 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
           <div className={styles.block}>
             <div className={styles.blockTitle}>Статистика</div>
             <div className={styles.row2}>
-              <div className={styles.col}>
-                <label className={styles.label}>Attempts</label>
-                <div className={styles.input}>{stats.attemptsCount}</div>
-              </div>
-              <div className={styles.col}>
-                <label className={styles.label}>AverageScore</label>
-                <div className={styles.input}>{stats.averageScore.toFixed(1)}</div>
-              </div>
-              <div className={styles.col}>
-                <label className={styles.label}>PerfectRate</label>
-                <div className={styles.input}>{Math.round(stats.perfectRate * 100)}%</div>
-              </div>
+              <div className={styles.col}><label className={styles.label}>Attempts</label><div className={styles.input}>{stats.attemptsCount}</div></div>
+              <div className={styles.col}><label className={styles.label}>AverageScore</label><div className={styles.input}>{stats.averageScore.toFixed(1)}</div></div>
+              <div className={styles.col}><label className={styles.label}>PerfectRate</label><div className={styles.input}>{pct(stats.perfectRate)}</div></div>
             </div>
-
             <div className={styles.questions}>
               {stats.tasks.map(task => (
                 <div key={task.taskId} className={styles.qRow}>
                   <div className={styles.qMain}>
                     <div className={styles.qTop}>
                       <div className={styles.qOrder}>{taskTypeLabel(task.type)}</div>
-                      <div className={styles.qMeta}>
-                        ответов {task.totalAnswers} · верных {task.correctAnswers}
-                      </div>
+                      <div className={styles.qMeta}>ответов {task.totalAnswers} · верных {task.correctAnswers} · ошибок {task.incorrectAnswers} · нейтр. {task.neutralAnswers}</div>
                     </div>
+                    <div className={styles.bar}><span style={{ width: pct(task.accuracyRate) }} /></div>
                     <div className={styles.qText}>{task.text}</div>
-                    {task.recentOpenAnswers.length > 0 && (
-                      <div className={styles.qMeta}>Последние ответы: {task.recentOpenAnswers.join(' | ')}</div>
-                    )}
-                    {task.pollOptions.length > 0 && (
-                      <div className={styles.qMeta}>
-                        {task.pollOptions.map(option => `${option.text}: ${option.votes}`).join(' · ')}
-                      </div>
-                    )}
+                    {task.recentOpenAnswers.length > 0 && <div className={styles.qMeta}>Последние ответы: {task.recentOpenAnswers.join(' | ')}</div>}
+                    {task.pollOptions.length > 0 && <div className={styles.qMeta}>{task.pollOptions.map(option => `${option.text}: ${option.votes}`).join(' · ')}</div>}
                   </div>
                 </div>
               ))}
@@ -669,43 +562,24 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
   return (
     <div className={styles.page}>
       <div className={styles.shell}>
-        <div className={styles.left}>
+        <aside className={styles.left}>
           <div className={styles.leftHead}>
-            <div className={styles.h1}>{mode === 'admin' ? 'Admin Games' : 'My Games'}</div>
-            {mode === 'mine' && (
-              <button className={styles.secondary} disabled={busy} onClick={beginCreateGame} type="button">
-                + Новая игра
-              </button>
-            )}
+            <div className={styles.h1}>{mode === 'admin' ? 'Все игры' : 'Мои игры'}</div>
+            {mode === 'mine' && <button className={styles.secondary} onClick={beginCreateGame} type="button">+ Игра</button>}
           </div>
-
-          {loadingList ? (
-            <div className={styles.state}>Загрузка…</div>
-          ) : (
+          {loadingList ? <div className={styles.state}>Загрузка...</div> : (
             <div className={styles.list}>
               {list.map(item => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={[styles.item, selectedId === item.id ? styles.itemActive : ''].join(' ')}
-                  onClick={() => {
-                    setCreatingNew(false);
-                    setSelectedId(item.id);
-                  }}
-                >
+                <button key={item.id} className={`${styles.item} ${selectedId === item.id ? styles.itemActive : ''}`} onClick={() => { setCreatingNew(false); setSelectedId(item.id); }} type="button">
                   <div className={styles.itemTitle}>{item.title}</div>
-                  <div className={styles.itemMeta}>
-                    {item.tasksCount} задач · {item.status === 1 ? 'VERIFIED' : 'UNVERIFIED'} · {item.ownerDisplayName}
-                  </div>
+                  <div className={styles.itemMeta}>{item.tasksCount} задач · {statusLabel(item.status)} · {item.ownerDisplayName}</div>
                 </button>
               ))}
             </div>
           )}
-
           {err && <div className={styles.error}>{err}</div>}
-        </div>
-
-        <div className={styles.right}>{right}</div>
+        </aside>
+        <main className={styles.right}>{right}</main>
       </div>
     </div>
   );
