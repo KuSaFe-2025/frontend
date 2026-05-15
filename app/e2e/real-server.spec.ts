@@ -281,6 +281,35 @@ test('real auth, catalog, game details and author moderation flow', async ({ pag
   await expect(page.getByText('Открытый ответ')).toBeVisible();
 });
 
+test('real game details disables moderation button while AI check is running', async ({ page }) => {
+  const author = await login('author@e2e.test');
+  await seedBrowserAuth(page, author.accessToken);
+  const game = await createGameViaApi(author.accessToken, 'E2E Detail Moderation Progress', 'Draft moderation progress check');
+  await createTaskViaApi(author.accessToken, game.id, {
+    type: 0,
+    order: 0,
+    text: 'Pick the correct option',
+    points: 10,
+    timeLimitMs: 30000,
+    options: ['Correct', 'Wrong'],
+    correctOptionIndex: 0,
+  });
+
+  await page.route(`${apiBase}/v1/my/games/${game.id}/submit-for-verification`, async route => {
+    await new Promise(resolve => setTimeout(resolve, 350));
+    await route.continue();
+  });
+
+  await page.goto(`/game/${game.id}`);
+  const submit = page.getByTestId('game-submit-verification');
+  await expect(submit).toBeVisible();
+  await submit.click();
+  await expect(submit).toBeDisabled();
+  await expect(submit).toContainText('AI проверяет...');
+  await expect(page.getByTestId('game-moderation-progress')).toBeVisible();
+  await expect(page.getByText('Проверено KuSaFe')).toBeVisible();
+});
+
 test('real registration, duplicate registration and refresh-token interceptor', async ({ page }) => {
   const email = 'registered@e2e.test';
   await registerViaUi(page, email, 'Registered User');
