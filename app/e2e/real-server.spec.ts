@@ -22,6 +22,8 @@ type AnswerResponse = {
   maxScore: number;
   correctAnswers: number;
   totalTasks: number;
+  scoredTasks: number;
+  neutralTasks: number;
   totalTimeMs: number;
   lastAnswerCorrect?: boolean | null;
   nextQuestionToken?: string | null;
@@ -239,6 +241,7 @@ async function completeGame(api: APIRequestContext, gameId: string) {
   const start = await api.post(`/v1/games/${gameId}/start`);
   if (!start.ok()) throw new Error(`${start.status()} ${await start.text()}`);
   let current = (await start.json()) as StartResponse;
+  const attemptId = current.attemptId;
   const answers: (boolean | null)[] = [];
   let finished: AnswerResponse | null = null;
 
@@ -256,7 +259,7 @@ async function completeGame(api: APIRequestContext, gameId: string) {
     }
   }
 
-  return { finished, answers };
+  return { attemptId, finished, answers };
 }
 
 test.beforeEach(async () => {
@@ -938,20 +941,38 @@ test('real player completes mixed game and result renders with leaderboard', asy
   const player = await login('player@e2e.test');
   const game = await createMixedGame(author.accessToken);
   const api = await authed(player.accessToken);
-  const { finished, answers } = await completeGame(api, game.id);
+  const { attemptId, finished, answers } = await completeGame(api, game.id);
 
   expect(finished.score).toBeGreaterThan(0);
+  expect(finished.totalTasks).toBe(6);
+  expect(finished.scoredTasks).toBe(4);
+  expect(finished.neutralTasks).toBe(2);
 
   await page.addInitScript(
     ({ token, gameId, payload }) => {
       localStorage.setItem('kusafe_access_token', token);
       sessionStorage.setItem(`game:${gameId}:resultPayload`, JSON.stringify(payload));
     },
-    { token: player.accessToken, gameId: game.id, payload: { finished, answers } }
+    { token: player.accessToken, gameId: game.id, payload: { attemptId, finished, answers } }
   );
   await page.goto(`/game/${game.id}/result`);
   await expect(page.getByText(/140 \/ 265|190 \/ 265|265 \/ 265/)).toBeVisible();
+  await expect(page.getByText('Правильных')).toBeVisible();
+  await expect(page.getByText(`${finished.correctAnswers} / 4`)).toBeVisible();
+  await expect(page.getByText('Не оцениваются', { exact: true })).toBeVisible();
+  await expect(page.getByText('- 2', { exact: true })).toBeVisible();
   await expect(page.getByText('Player')).toBeVisible();
+  await page.getByRole('button', { name: 'Посмотреть мои ответы' }).click();
+  await expect(page.getByTestId('attempt-review')).toBeVisible();
+  await expect(page.getByTestId('attempt-review-item')).toHaveCount(6);
+  await expect(page.locator('textarea[readonly]')).toHaveValue('Open answer from real E2E');
+  await page.getByRole('button', { name: 'Объяснить' }).first().click();
+  await expect(page.getByTestId('answer-explanation').first()).toContainText('Правильный ответ');
+
+  await page.goto(`/game/${game.id}`);
+  await expect(page.getByText('Правильных')).toBeVisible();
+  await expect(page.getByText(`${finished.correctAnswers} / 4`)).toBeVisible();
+  await expect(page.getByText(`${finished.correctAnswers} / 4 · не оцениваются - 2`, { exact: true })).toBeVisible();
 
   await api.dispose();
 });

@@ -1,34 +1,17 @@
-FROM node:20-bullseye
+FROM node:20-bullseye AS build
 
-WORKDIR /home/app
+WORKDIR /src
 
-# Копируем только package.json и yarn.lock из app/
-COPY app/package.json app/yarn.lock ./
+COPY app/package.json app/package-lock.json ./
+RUN npm ci
 
-RUN yarn config set registry https://registry.npmjs.org
+COPY app ./
+ENV VITE_API_BASE_URL=/api
+RUN npm run build
 
-RUN yarn install --frozen-lockfile
+FROM nginx:1.27-alpine AS runtime
 
-# ARM64-specific fix
-RUN ARCH=$(uname -m) && \
-    if [ "$ARCH" = "aarch64" ]; then \
-      echo "Installing rollup-linux-arm64-gnu for ARM64..."; \
-      yarn add --dev @rollup/rollup-linux-arm64-gnu --ignore-scripts; \
-      npm rebuild esbuild; \
-    fi
+COPY nginx.app.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /src/dist /usr/share/nginx/html
 
-# Копируем весь исходный код из папки app/
-COPY app .
-
-ENV NODE_OPTIONS=--max-old-space-size=4096
-
-# Сборка
-RUN yarn build
-
-# Копируем entrypoint и даём права на исполнение
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-ENTRYPOINT ["/entrypoint.sh"]
-
-EXPOSE ${PORT}
+EXPOSE 80

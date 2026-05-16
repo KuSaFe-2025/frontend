@@ -1,0 +1,133 @@
+name: Frontend CI/CD
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: ghcr.io/kusafe-2025/frontend
+  DEPLOY_DIR: /opt/kusafe
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout frontend
+        uses: actions/checkout@v4
+        with:
+          path: KuSaFeFrontend
+
+      - name: Checkout backend for real-stack E2E
+        uses: actions/checkout@v4
+        with:
+          repository: KuSaFe-2025/backend
+          path: KuSaFeBackend
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: KuSaFeFrontend/app/package-lock.json
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install frontend dependencies
+        working-directory: KuSaFeFrontend/app
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: KuSaFeFrontend/app
+        run: npm run build
+
+      - name: Unit tests
+        working-directory: KuSaFeFrontend/app
+        run: npm test
+
+      - name: Install Playwright Chromium
+        working-directory: KuSaFeFrontend/app
+        run: npx playwright install --with-deps chromium
+
+      - name: Restore backend
+        working-directory: KuSaFeBackend
+        run: dotnet restore KuSaFeBackend.csproj
+
+      - name: E2E tests
+        working-directory: KuSaFeFrontend/app
+        run: npm run test:e2e
+
+  build-and-deploy:
+    needs: test
+    runs-on: ubuntu-22.04
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Prepare deploy directory
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          script: mkdir -p "${{ env.DEPLOY_DIR }}"
+
+      - name: Upload deploy files
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          source: deploy/docker-compose.prod.yml,deploy/nginx.host.conf
+          target: ${{ env.DEPLOY_DIR }}
+          strip_components: 1
+
+      - name: Deploy frontend on server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          script: |
+            set -euo pipefail
+            mkdir -p "${{ env.DEPLOY_DIR }}"
+            cd "${{ env.DEPLOY_DIR }}"
+            if [ ! -f .env ]; then
+              printf '%s\n' \
+                'POSTGRES_DB=kusafe_db' \
+                'POSTGRES_USER=postgres' \
+                'POSTGRES_PASSWORD=${{ secrets.PROD_POSTGRES_PASSWORD }}' \
+                'JWT_KEY=${{ secrets.PROD_JWT_KEY }}' \
+                'OLLAMA_MODEL=llama3.1:8b' \
+                'BACKEND_TAG=main' \
+                'FRONTEND_TAG=main' > .env
+            fi
+            echo '${{ secrets.GHCR_READ_TOKEN }}' | docker login ghcr.io -u '${{ secrets.GHCR_READ_USER }}' --password-stdin
+            docker compose -f docker-compose.prod.yml pull frontend
+            docker compose -f docker-compose.prod.yml up -d postgres ollama frontend
+            docker image prune -f
+            curl -fsS http://127.0.0.1:5549/ >/dev/null

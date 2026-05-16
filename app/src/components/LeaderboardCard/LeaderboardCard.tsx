@@ -12,6 +12,8 @@ export type LeaderboardItem = {
   maxScore: number;
   correctAnswers: number;
   totalTasks: number;
+  scoredTasks?: number;
+  neutralTasks?: number;
 };
 
 function msToSec(ms: number) {
@@ -62,7 +64,10 @@ export function LeaderboardCard(props: { gameId: string; showMyPlaceIfPerfect?: 
                 <div className={styles.place}>{i + 1}</div>
                 <div className={styles.name}>
                   {x.displayName}
-                  <span className={styles.meta}>{new Date(x.finishedAtUtc).toLocaleDateString()} · {x.score}/{x.maxScore} · {x.correctAnswers}/{x.totalTasks}</span>
+                  <span className={styles.meta}>
+                    {new Date(x.finishedAtUtc).toLocaleDateString()} · {x.score}/{x.maxScore} · {x.correctAnswers}/{x.scoredTasks ?? x.totalTasks}
+                    {(x.neutralTasks ?? 0) > 0 ? ` · не оцениваются - ${x.neutralTasks}` : ''}
+                  </span>
                 </div>
               </div>
               <div className={styles.time}>{msToSec(x.totalTimeMs)}с</div>

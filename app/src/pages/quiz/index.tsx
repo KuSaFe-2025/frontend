@@ -25,6 +25,9 @@ type AttemptItem = {
   finishedAtUtc: string;
   score: number;
   maxScore: number;
+  correctAnswers?: number;
+  scoredTasks?: number;
+  neutralTasks?: number;
 };
 
 type ReviewItem = {
@@ -477,6 +480,7 @@ export const QuizPage = () => {
                     <span>Время</span>
                     <span>Дата</span>
                     <span>Баллы</span>
+                    <span>Правильных</span>
                   </div>
                   {(attempts?.items ?? []).map(item => (
                     <div className={styles.tableRow} key={item.attemptId}>
@@ -484,6 +488,10 @@ export const QuizPage = () => {
                       <span>{Math.round(item.totalTimeMs / 1000)} с</span>
                       <span>{new Date(item.finishedAtUtc).toLocaleString('ru-RU')}</span>
                       <span>{item.score} / {item.maxScore}</span>
+                      <span>
+                        {item.correctAnswers ?? 0} / {item.scoredTasks ?? 0}
+                        {(item.neutralTasks ?? 0) > 0 ? ` · не оцениваются - ${item.neutralTasks}` : ''}
+                      </span>
                     </div>
                   ))}
                 </div>

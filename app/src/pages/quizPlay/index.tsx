@@ -39,6 +39,8 @@ type AnswerResponse = {
   maxScore: number;
   correctAnswers: number;
   totalTasks: number;
+  scoredTasks?: number;
+  neutralTasks?: number;
   totalTimeMs: number;
   nextQuestionToken?: string | null;
   nextQuestionExpiresAtUtc?: string | null;
@@ -48,6 +50,7 @@ type AnswerResponse = {
 type GameMetaLite = { tasksCount: number };
 
 type ResultPayload = {
+  attemptId: string;
   finished: AnswerResponse;
   answers: (boolean | null)[];
 };
@@ -229,7 +232,7 @@ export const QuizPlayPage = () => {
 
     sessionStorage.setItem(
       `game:${gameId}:resultPayload`,
-      JSON.stringify({ finished, answers } satisfies ResultPayload)
+      JSON.stringify({ attemptId: attemptId ?? '', finished, answers } satisfies ResultPayload)
     );
     sessionStorage.removeItem(`game:${gameId}:startPayload`);
     navigate(`/game/${gameId}/result`, { replace: true });

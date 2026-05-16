@@ -116,7 +116,7 @@
 .tableHead,
 .tableRow {
   display: grid;
-  grid-template-columns: minmax(160px, 1.2fr) 110px minmax(180px, 1fr) 120px;
+  grid-template-columns: minmax(150px, 1.1fr) 90px minmax(160px, 1fr) 105px minmax(150px, 1fr);
   gap: 10px;
   align-items: center;
 }
