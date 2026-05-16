@@ -1,4 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const configDir = dirname(fileURLToPath(import.meta.url));
+const backendProject = resolve(configDir, '..', '..', 'KuSaFeBackend', 'KuSaFeBackend.csproj');
 
 export default defineConfig({
   testDir: './e2e',
@@ -12,7 +17,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: 'dotnet run --no-restore --project ..\\..\\KuSaFeBackend\\KuSaFeBackend.csproj --no-launch-profile --urls http://127.0.0.1:5267',
+      command: `dotnet run --no-restore --project "${backendProject}" --no-launch-profile --urls http://127.0.0.1:5267`,
       url: 'http://127.0.0.1:5267/v1/health',
       reuseExistingServer: true,
       timeout: 120000,
