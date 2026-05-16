@@ -39,11 +39,26 @@ type TaskUpsert = {
   correctOptionIndexes?: number[];
 };
 
+type GameCreateOverrides = {
+  isPrivate?: boolean;
+  maxAttemptsPerUser?: number | null;
+  availableFromUtc?: string | null;
+  availableUntilUtc?: string | null;
+};
+
 async function resetAndSeed() {
   const api = await requestFactory.newContext({ baseURL: apiBase });
-  const reset = await api.post('/v1/e2e/reset');
-  expect(reset.ok()).toBeTruthy();
-  await reset.dispose();
+  let resetOk = false;
+  let lastResetStatus = 0;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const reset = await api.post('/v1/e2e/reset');
+    resetOk = reset.ok();
+    lastResetStatus = reset.status();
+    await reset.dispose();
+    if (resetOk) break;
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
+  expect(resetOk, `E2E reset failed with status ${lastResetStatus}`).toBeTruthy();
   const seed = await api.post('/v1/e2e/seed-users');
   expect(seed.ok()).toBeTruthy();
   await seed.dispose();
@@ -89,10 +104,10 @@ async function registerViaUi(page: Page, email: string, displayName: string, pwd
   await page.getByTestId('auth-submit').click();
 }
 
-async function createGameViaApi(token: string, title: string, description = 'Created by real-stack tests') {
+async function createGameViaApi(token: string, title: string, description = 'Created by real-stack tests', overrides: GameCreateOverrides = {}) {
   const api = await authed(token);
   const create = await api.post('/v1/my/games', {
-    data: { title, description, descriptionFormat: 1, themeColor: '#2563EB' },
+    data: { title, description, descriptionFormat: 1, themeColor: '#2563EB', ...overrides },
   });
   expect(create.ok()).toBeTruthy();
   const game = (await create.json()) as Created;
@@ -268,10 +283,11 @@ test('real auth, catalog, game details and author moderation flow', async ({ pag
   const game = await createMixedGame(author.accessToken);
 
   await page.goto('/games');
-  await expect(page.getByText(game.title)).toBeVisible();
-  await page.getByText(game.title).hover();
-  await expect(page.locator('strong').filter({ hasText: 'Markdown description' })).toBeVisible();
-  await page.getByText(game.title).click();
+  const allGames = page.getByTestId('all-games');
+  await expect(allGames.getByText(game.title)).toBeVisible();
+  await allGames.getByText(game.title).hover();
+  await expect(allGames.locator('strong').filter({ hasText: 'Markdown description' })).toBeVisible();
+  await allGames.getByText(game.title).click();
   await expect(page.getByText('Проверена')).toBeVisible();
   await expect(page.getByText('Проверено KuSaFe')).toBeVisible();
   await expect(page.locator('strong').filter({ hasText: 'Markdown description' })).toBeVisible();
@@ -279,6 +295,39 @@ test('real auth, catalog, game details and author moderation flow', async ({ pag
   await expect(page.getByText('Викторина')).toBeVisible();
   await expect(page.getByText('Порядок')).toBeVisible();
   await expect(page.getByText('Открытый ответ')).toBeVisible();
+});
+
+test('real games page shows recommended and all games with attempts and rating metrics', async ({ page }) => {
+  const author = await login('author@e2e.test');
+  const player = await login('player@e2e.test');
+  const api = await authed(player.accessToken);
+
+  for (const attempts of [1, 2, 3, 4, 5, 6]) {
+    const game = await createVerifiedQuizGame(author.accessToken, `Recommended Rank ${attempts}`);
+    for (let i = 0; i < attempts; i++) await completeGame(api, game.id);
+    await api.post(`/v1/games/${game.id}/reviews`, { data: { rating: attempts === 1 ? 2 : 4, text: `Rating for rank ${attempts}` } });
+    if (attempts === 6) await api.post(`/v1/games/${game.id}/reviews`, { data: { rating: 5, text: 'Great recommended game' } });
+  }
+  await api.dispose();
+
+  await page.goto('/games');
+
+  const recommended = page.getByTestId('recommended-games');
+  await expect(recommended.getByRole('heading', { name: 'Рекомендуемые игры' })).toBeVisible();
+  await expect(recommended.getByText('Самые проходимые игры с высоким рейтингом')).toBeVisible();
+  const recommendedCards = recommended.getByTestId('game-card');
+  await expect(recommendedCards).toHaveCount(3);
+  await expect(recommendedCards.nth(0)).toContainText('Recommended Rank 6');
+  await expect(recommendedCards.nth(0)).toContainText('6 прохождений');
+  await expect(recommendedCards.nth(0)).toContainText('рейтинг 4.5 звезды ★★★★★');
+  await expect(recommendedCards.nth(2)).toContainText('Recommended Rank 4');
+  await expect(recommended).not.toContainText('Recommended Rank 3');
+  await expect(recommended).not.toContainText('Recommended Rank 1');
+
+  const allGames = page.getByTestId('all-games');
+  await expect(allGames.getByRole('heading', { name: 'Все игры' })).toBeVisible();
+  await expect(allGames.getByText('Recommended Rank 1')).toBeVisible();
+  await expect(allGames.getByText('Recommended Rank 6')).toBeVisible();
 });
 
 test('real game details disables moderation button while AI check is running', async ({ page }) => {
@@ -308,6 +357,63 @@ test('real game details disables moderation button while AI check is running', a
   await expect(submit).toContainText('AI проверяет...');
   await expect(page.getByTestId('game-moderation-progress')).toBeVisible();
   await expect(page.getByText('Проверено KuSaFe')).toBeVisible();
+});
+
+test('real private game link sends anonymous player through login returnUrl', async ({ page }) => {
+  const author = await login('author@e2e.test');
+  const game = await createGameViaApi(author.accessToken, 'Private Browser Link Game', 'Open only by URL', { isPrivate: true });
+  await createTaskViaApi(author.accessToken, game.id, {
+    type: 0,
+    order: 0,
+    text: 'Private link question',
+    points: 10,
+    timeLimitMs: 30000,
+    options: ['Correct', 'Wrong'],
+    correctOptionIndex: 0,
+  });
+  await submitGameForVerification(author.accessToken, game.id);
+
+  await page.goto('/games');
+  await expect(page.getByText('Private Browser Link Game')).toHaveCount(0);
+
+  await page.goto(`/game/${game.id}`);
+  await expect(page.getByText('Private Browser Link Game')).toBeVisible();
+  await expect(page.getByText('Доступ по ссылке')).toBeVisible();
+  await expect(page.getByTestId('copy-game-link')).toBeVisible();
+  await page.getByRole('button', { name: 'Начать' }).click();
+  await expect(page).toHaveURL(new RegExp(`/login\\?returnUrl=.*${game.id}`));
+
+  await page.getByTestId('email-input').fill('player@e2e.test');
+  await page.getByTestId('password-input').fill(password);
+  await page.getByTestId('auth-submit').click();
+  await expect(page).toHaveURL(new RegExp(`/game/${game.id}/play`));
+  await expect(page.getByText('Private link question')).toBeVisible();
+});
+
+test('real start limit errors render a dialog instead of browser alert', async ({ page }) => {
+  const author = await login('author@e2e.test');
+  const player = await login('player@e2e.test');
+  const game = await createGameViaApi(author.accessToken, 'Dialog Attempt Limit Game', 'Start should show dialog', { maxAttemptsPerUser: 1 });
+  await createTaskViaApi(author.accessToken, game.id, {
+    type: 0,
+    order: 0,
+    text: 'Dialog limit question',
+    points: 10,
+    timeLimitMs: 30000,
+    options: ['Correct', 'Wrong'],
+    correctOptionIndex: 0,
+  });
+  await submitGameForVerification(author.accessToken, game.id);
+
+  const api = await authed(player.accessToken);
+  expect((await api.post(`/v1/games/${game.id}/start`)).ok()).toBeTruthy();
+  await api.dispose();
+
+  await seedBrowserAuth(page, player.accessToken);
+  await page.goto(`/game/${game.id}`);
+  await page.getByRole('button', { name: 'Начать' }).click();
+  await expect(page.getByRole('dialog', { name: 'Не удалось начать игру' })).toBeVisible();
+  await expect(page.getByText('максимум попыток')).toBeVisible();
 });
 
 test('real registration, duplicate registration and refresh-token interceptor', async ({ page }) => {
@@ -394,6 +500,102 @@ test('real author CRUD, stats and CSV export endpoints', async () => {
   expect(delGame.ok()).toBeTruthy();
 
   await api.dispose();
+});
+
+test('real private games, attempt limits and availability windows', async () => {
+  const author = await login('author@e2e.test');
+  const player = await login('player@e2e.test');
+  const admin = await login('admin@e2e.test');
+
+  const privateGame = await createGameViaApi(author.accessToken, 'Private Link Only Game', 'Hidden from public catalog', { isPrivate: true });
+  await createTaskViaApi(author.accessToken, privateGame.id, {
+    type: 0,
+    order: 0,
+    text: 'Pick public answer',
+    points: 10,
+    timeLimitMs: 30000,
+    options: ['Correct', 'Wrong'],
+    correctOptionIndex: 0,
+  });
+  await submitGameForVerification(author.accessToken, privateGame.id);
+
+  const anonymous = await requestFactory.newContext({ baseURL: apiBase });
+  expect(await (await anonymous.get('/v1/games')).text()).not.toContain('Private Link Only Game');
+  expect((await anonymous.get('/v1/games/featured')).status()).not.toBe(200);
+  const directPrivate = await anonymous.get(`/v1/games/${privateGame.id}`);
+  expect(directPrivate.ok()).toBeTruthy();
+  expect(await directPrivate.json()).toMatchObject({ title: 'Private Link Only Game', isPrivate: true });
+  await anonymous.dispose();
+
+  const privateReviewApi = await authed(player.accessToken);
+  const privateReview = await privateReviewApi.post(`/v1/games/${privateGame.id}/reviews`, { data: { rating: 4, text: 'Private linked review' } });
+  expect(privateReview.ok()).toBeTruthy();
+  expect((await privateReviewApi.get(`/v1/games/${privateGame.id}/reviews`)).status()).toBe(404);
+  const publicReviewFeed = await privateReviewApi.get('/v1/reviews');
+  expect(await publicReviewFeed.text()).not.toContain('Private linked review');
+  await privateReviewApi.dispose();
+
+  const ownerReviewApi = await authed(author.accessToken);
+  const ownerPrivateReviews = await ownerReviewApi.get(`/v1/games/${privateGame.id}/reviews`);
+  expect(ownerPrivateReviews.ok()).toBeTruthy();
+  expect(await ownerPrivateReviews.text()).toContain('Private linked review');
+  await ownerReviewApi.dispose();
+
+  const limitedGame = await createGameViaApi(author.accessToken, 'Limited Attempt Game', 'Two starts per user', { maxAttemptsPerUser: 2 });
+  await createTaskViaApi(author.accessToken, limitedGame.id, {
+    type: 0,
+    order: 0,
+    text: 'Pick one',
+    points: 10,
+    timeLimitMs: 30000,
+    options: ['Correct', 'Wrong'],
+    correctOptionIndex: 0,
+  });
+  await submitGameForVerification(author.accessToken, limitedGame.id);
+
+  const playerApi = await authed(player.accessToken);
+  expect((await playerApi.post(`/v1/games/${limitedGame.id}/start`)).ok()).toBeTruthy();
+  expect((await playerApi.post(`/v1/games/${limitedGame.id}/start`)).ok()).toBeTruthy();
+  const thirdStart = await playerApi.post(`/v1/games/${limitedGame.id}/start`);
+  expect(thirdStart.status()).toBe(409);
+  await playerApi.dispose();
+
+  const adminApi = await authed(admin.accessToken);
+  expect((await adminApi.post(`/v1/games/${limitedGame.id}/start`)).ok()).toBeTruthy();
+  await adminApi.dispose();
+
+  const futureGame = await createGameViaApi(author.accessToken, 'Future Window Game', 'Not available yet', {
+    availableFromUtc: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+  });
+  await createTaskViaApi(author.accessToken, futureGame.id, {
+    type: 0,
+    order: 0,
+    text: 'Future pick',
+    points: 10,
+    timeLimitMs: 30000,
+    options: ['Correct', 'Wrong'],
+    correctOptionIndex: 0,
+  });
+  await submitGameForVerification(author.accessToken, futureGame.id);
+
+  const expiredGame = await createGameViaApi(author.accessToken, 'Expired Window Game', 'No longer available', {
+    availableUntilUtc: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+  });
+  await createTaskViaApi(author.accessToken, expiredGame.id, {
+    type: 0,
+    order: 0,
+    text: 'Expired pick',
+    points: 10,
+    timeLimitMs: 30000,
+    options: ['Correct', 'Wrong'],
+    correctOptionIndex: 0,
+  });
+  await submitGameForVerification(author.accessToken, expiredGame.id);
+
+  const windowApi = await authed(player.accessToken);
+  expect((await windowApi.post(`/v1/games/${futureGame.id}/start`)).status()).toBe(400);
+  expect((await windowApi.post(`/v1/games/${expiredGame.id}/start`)).status()).toBe(400);
+  await windowApi.dispose();
 });
 
 test('real multichoice, attempts, reviews, stats reset and deterministic AI endpoints', async () => {
@@ -489,10 +691,22 @@ test('real author dashboard creates tasks, verifies game and downloads CSV throu
   await page.getByTestId('game-title-input').fill('Dashboard UI Game');
   await page.getByTestId('game-description-input').fill('Created through the real dashboard UI');
   await page.getByTestId('game-theme-color-input').fill('#16A34A');
+  await page.getByTestId('game-private-input').check();
+  await page.getByTestId('game-attempt-limit-toggle').check();
+  await page.getByTestId('game-max-attempts-input').fill('3');
+  await page.getByTestId('game-time-limit-toggle').check();
+  await page.getByTestId('game-available-until-date-input').fill('01.01.2099');
+  await page.getByTestId('game-available-until-hour-select').selectOption('12');
+  await page.getByTestId('game-available-until-minute-select').selectOption('00');
   await page.getByTestId('create-game-save').click();
 
   await expect(page.getByTestId('game-list-item').filter({ hasText: 'Dashboard UI Game' })).toBeVisible();
   await expect(page.getByTestId('dashboard-tab-info')).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByTestId('game-private-input')).toBeChecked();
+  await expect(page.getByTestId('game-attempt-limit-toggle')).toBeChecked();
+  await expect(page.getByTestId('game-max-attempts-input')).toHaveValue('3');
+  await expect(page.getByTestId('game-time-limit-toggle')).toBeChecked();
+  await expect(page.getByTestId('copy-game-link')).toBeVisible();
   await page.getByTestId('dashboard-tab-tasks').click();
   await expect(page.getByTestId('open-create-task')).toBeVisible();
 
@@ -677,7 +891,7 @@ test('real visibility rules hide non-public games from anonymous and other playe
 
   await submitGameForVerification(author.accessToken, draft.id);
   await page.goto('/games');
-  await expect(page.getByText('Private Draft Visibility Game')).toBeVisible();
+  await expect(page.getByTestId('all-games').getByText('Private Draft Visibility Game')).toBeVisible();
 });
 
 test('real gameplay rejects empty games, invalid answers and stale question tokens', async () => {
@@ -769,7 +983,7 @@ test('real leaderboard ranks perfect attempts and renders on game details page',
 
   await page.goto(`/game/${game.id}`);
   await expect(page.getByText('Leaderboard Perfect Game')).toBeVisible();
-  await expect(page.getByText('Player')).toBeVisible();
+  await expect(page.getByText('Player', { exact: true })).toBeVisible();
   await api.dispose();
 });
 

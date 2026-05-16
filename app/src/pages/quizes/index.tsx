@@ -11,6 +11,8 @@ type GameListItem = {
   description?: string | null;
   descriptionFormat: number;
   tasksCount: number;
+  attemptsCount: number;
+  averageRating: number;
   themeColor?: string | null;
   status: number;
   ownerDisplayName: string;
@@ -88,9 +90,29 @@ function renderDescription(game: GameListItem) {
   return DOMPurify.sanitize(marked.parse(description, { async: false }) as string);
 }
 
+function attemptsLabel(count: number) {
+  const n = Math.max(0, count);
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${n} прохождение`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${n} прохождения`;
+  return `${n} прохождений`;
+}
+
+function ratingStars(value: number) {
+  const rounded = clamp(Math.round(value || 0), 0, 5);
+  return '★'.repeat(rounded) + '☆'.repeat(5 - rounded);
+}
+
+function ratingLabel(value: number) {
+  const rating = Number.isFinite(value) ? value : 0;
+  return `рейтинг ${rating.toFixed(1)} звезды ${ratingStars(rating)}`;
+}
+
 export const Quizes = () => {
   const navigate = useNavigate();
   const [items, setItems] = useState<GameListItem[]>([]);
+  const [recommended, setRecommended] = useState<GameListItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -100,8 +122,14 @@ export const Quizes = () => {
       try {
         setLoading(true);
         setError(null);
-        const res = await api.get<GameListItem[]>('/v1/games');
-        if (alive) setItems(res.data ?? []);
+        const [allRes, recommendedRes] = await Promise.all([
+          api.get<GameListItem[]>('/v1/games'),
+          api.get<GameListItem[]>('/v1/games/recommended'),
+        ]);
+        if (alive) {
+          setItems(allRes.data ?? []);
+          setRecommended(recommendedRes.data ?? []);
+        }
       } catch (e: any) {
         if (alive) setError(String(e?.response?.data ?? e?.message ?? 'Не удалось загрузить игры'));
       } finally {
@@ -113,33 +141,61 @@ export const Quizes = () => {
     };
   }, []);
 
+  const renderGameCard = (game: GameListItem, className = '') => (
+    <button data-testid="game-card" key={game.id} className={`${styles.card} ${className}`} style={{ backgroundImage: buildGradient(game.themeColor) }} onClick={() => navigate(`/game/${game.id}`)} type="button">
+      <div className={styles.cardOverlay} />
+      <div className={styles.cardBody}>
+        <div className={styles.swap}>
+          <div className={styles.title}>{game.title}</div>
+          <div className={styles.qCount}>{game.tasksCount} задач · {game.ownerDisplayName}</div>
+          {game.descriptionFormat === 1 ? (
+            <div className={`${styles.desc} ${styles.markdownDesc}`} dangerouslySetInnerHTML={{ __html: renderDescription(game) }} />
+          ) : (
+            <div className={styles.desc}>{renderDescription(game)}</div>
+          )}
+        </div>
+        <div className={styles.cardFooter}>
+          <span className={styles.hint}>{statusHint(game)}</span>
+          <span>{attemptsLabel(game.attemptsCount)}</span>
+          <span>{ratingLabel(game.averageRating)}</span>
+        </div>
+      </div>
+    </button>
+  );
+
   const content = useMemo(() => {
     if (loading) return <div className={styles.state}>Загрузка...</div>;
     if (error) return <div className={styles.state}>Ошибка: {error}</div>;
     if (!items.length) return <div className={styles.state}>Доступных игр пока нет</div>;
 
     return (
-      <div className={styles.grid}>
-        {items.map(game => (
-          <button key={game.id} className={styles.card} style={{ backgroundImage: buildGradient(game.themeColor) }} onClick={() => navigate(`/game/${game.id}`)} type="button">
-            <div className={styles.cardOverlay} />
-            <div className={styles.cardBody}>
-              <div className={styles.swap}>
-                <div className={styles.title}>{game.title}</div>
-                <div className={styles.qCount}>{game.tasksCount} задач · {game.ownerDisplayName}</div>
-                {game.descriptionFormat === 1 ? (
-                  <div className={`${styles.desc} ${styles.markdownDesc}`} dangerouslySetInnerHTML={{ __html: renderDescription(game) }} />
-                ) : (
-                  <div className={styles.desc}>{renderDescription(game)}</div>
-                )}
-              </div>
-              <div className={styles.hint}>{statusHint(game)}</div>
-            </div>
-          </button>
-        ))}
+      <div className={styles.sections}>
+        <section className={styles.section} data-testid="recommended-games">
+          <div className={styles.sectionHead}>
+            <h2>Рекомендуемые игры</h2>
+            <span>Самые проходимые игры с высоким рейтингом</span>
+          </div>
+          <div className={styles.recommendedGrid}>
+            {recommended.length
+              ? recommended.map(game => renderGameCard(game, styles.recommendedCard))
+              : <div className={styles.state}>Рекомендаций пока нет</div>}
+          </div>
+        </section>
+
+        <div className={styles.divider} aria-hidden="true" />
+
+        <section className={styles.section} data-testid="all-games">
+          <div className={styles.sectionHead}>
+            <h2>Все игры</h2>
+            <span>{items.length} доступно</span>
+          </div>
+          <div className={styles.grid}>
+            {items.map(game => renderGameCard(game))}
+          </div>
+        </section>
       </div>
     );
-  }, [error, items, loading, navigate]);
+  }, [error, items, loading, navigate, recommended]);
 
   return (
     <div className={styles.page}>

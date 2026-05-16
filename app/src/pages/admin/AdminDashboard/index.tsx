@@ -12,6 +12,10 @@ type GameListItem = {
   description?: string | null;
   tasksCount: number;
   themeColor?: string | null;
+  isPrivate: boolean;
+  maxAttemptsPerUser?: number | null;
+  availableFromUtc?: string | null;
+  availableUntilUtc?: string | null;
   status: number;
   lastModeratedAtUtc?: string | null;
   moderationDecision?: string | null;
@@ -46,6 +50,10 @@ type GameUpsertRequest = {
   description?: string | null;
   descriptionFormat: number;
   themeColor?: string | null;
+  isPrivate: boolean;
+  maxAttemptsPerUser?: number | null;
+  availableFromUtc?: string | null;
+  availableUntilUtc?: string | null;
 };
 
 type TaskUpsertRequest = {
@@ -144,6 +152,114 @@ function normalizeHex(input: string) {
 
 function isValidHexColor(input?: string | null) {
   return /^#[0-9A-F]{6}$/i.test(normalizeHex(input ?? ''));
+}
+
+type AvailabilityDrafts = {
+  fromDate: string;
+  fromTime: string;
+  untilDate: string;
+  untilTime: string;
+};
+
+type AvailabilityTarget = 'from' | 'until';
+
+const emptyAvailabilityDrafts: AvailabilityDrafts = {
+  fromDate: '',
+  fromTime: '',
+  untilDate: '',
+  untilTime: '',
+};
+
+const MONTH_LABELS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+const HOURS = Array.from({ length: 24 }, (_, i) => pad2(i));
+const MINUTES = Array.from({ length: 60 }, (_, i) => pad2(i));
+
+function pad2(n: number) {
+  return String(n).padStart(2, '0');
+}
+
+function toRussianDateInput(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${pad2(date.getDate())}.${pad2(date.getMonth() + 1)}.${date.getFullYear()}`;
+}
+
+function toTwentyFourHourInput(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
+}
+
+function toAvailabilityDrafts(from?: string | null, until?: string | null): AvailabilityDrafts {
+  return {
+    fromDate: toRussianDateInput(from),
+    fromTime: toTwentyFourHourInput(from),
+    untilDate: toRussianDateInput(until),
+    untilTime: toTwentyFourHourInput(until),
+  };
+}
+
+function parseRussianDate(value: string) {
+  const match = value.trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+  if (!match) return null;
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+  return { day, month, year };
+}
+
+function formatRussianDate(day: number, month: number, year: number) {
+  return `${pad2(day)}.${pad2(month)}.${year}`;
+}
+
+function monthFromRussianDate(value: string) {
+  const parsed = parseRussianDate(value);
+  return parsed ? new Date(parsed.year, parsed.month - 1, 1) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+}
+
+function addCalendarMonths(value: Date, delta: number) {
+  return new Date(value.getFullYear(), value.getMonth() + delta, 1);
+}
+
+function buildCalendarDays(monthDate: Date) {
+  const first = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const offset = (first.getDay() + 6) % 7;
+  const start = new Date(first);
+  start.setDate(first.getDate() - offset);
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return date;
+  });
+}
+
+function parseTwentyFourHour(value: string) {
+  const match = value.trim().match(/^([01]?\d|2[0-3]):([0-5]\d)$/);
+  if (!match) return null;
+  return { hours: Number(match[1]), minutes: Number(match[2]) };
+}
+
+function fromRussianDateTimeInput(dateValue: string, timeValue: string) {
+  if (!dateValue.trim() && !timeValue.trim()) return { valid: true, value: null as string | null };
+  const parsedDate = parseRussianDate(dateValue);
+  const parsedTime = parseTwentyFourHour(timeValue);
+  if (!parsedDate || !parsedTime) return { valid: false, value: null as string | null };
+  return {
+    valid: true,
+    value: new Date(
+      parsedDate.year,
+      parsedDate.month - 1,
+      parsedDate.day,
+      parsedTime.hours,
+      parsedTime.minutes
+    ).toISOString(),
+  };
 }
 
 function taskTypeLabel(type: number) {
@@ -265,6 +381,11 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
   const [aiBusy, setAiBusy] = useState<string | null>(null);
   const [verifiedEditAcknowledged, setVerifiedEditAcknowledged] = useState(false);
   const [verifiedEditDialogOpen, setVerifiedEditDialogOpen] = useState(false);
+  const [attemptLimitEnabled, setAttemptLimitEnabled] = useState(false);
+  const [timeLimitEnabled, setTimeLimitEnabled] = useState(false);
+  const [availabilityDrafts, setAvailabilityDrafts] = useState<AvailabilityDrafts>(emptyAvailabilityDrafts);
+  const [openDatePicker, setOpenDatePicker] = useState<AvailabilityTarget | null>(null);
+  const [calendarMonth, setCalendarMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const pendingVerifiedActionRef = useRef<(() => void) | null>(null);
   const colorInputRef = useRef<HTMLInputElement | null>(null);
   const aiToastIdRef = useRef<string | undefined>(undefined);
@@ -275,6 +396,10 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
     description: '',
     descriptionFormat: 1,
     themeColor: '#7C3AED',
+    isPrivate: false,
+    maxAttemptsPerUser: null,
+    availableFromUtc: null,
+    availableUntilUtc: null,
   });
   const [taskForm, setTaskForm] = useState<TaskUpsertRequest>(defaultTaskForm(0));
 
@@ -350,7 +475,15 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
         description: gameRes.data.description ?? '',
         descriptionFormat: gameRes.data.descriptionFormat ?? 1,
         themeColor: gameRes.data.themeColor ?? '#7C3AED',
+        isPrivate: !!gameRes.data.isPrivate,
+        maxAttemptsPerUser: gameRes.data.maxAttemptsPerUser ?? null,
+        availableFromUtc: gameRes.data.availableFromUtc ?? null,
+        availableUntilUtc: gameRes.data.availableUntilUtc ?? null,
       });
+      setAttemptLimitEnabled(!!gameRes.data.maxAttemptsPerUser);
+      setTimeLimitEnabled(!!gameRes.data.availableFromUtc || !!gameRes.data.availableUntilUtc);
+      setAvailabilityDrafts(toAvailabilityDrafts(gameRes.data.availableFromUtc, gameRes.data.availableUntilUtc));
+      setOpenDatePicker(null);
       setTaskFormOpen(false);
       setTaskEditId(null);
       setVerifiedEditAcknowledged(false);
@@ -382,7 +515,20 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
     setOpenAnswers({});
     setTaskFormOpen(false);
     setTaskEditId(null);
-    setGameForm({ title: '', description: '', descriptionFormat: 1, themeColor: '#7C3AED' });
+    setGameForm({
+      title: '',
+      description: '',
+      descriptionFormat: 1,
+      themeColor: '#7C3AED',
+      isPrivate: false,
+      maxAttemptsPerUser: null,
+      availableFromUtc: null,
+      availableUntilUtc: null,
+    });
+    setAttemptLimitEnabled(false);
+    setTimeLimitEnabled(false);
+    setAvailabilityDrafts(emptyAvailabilityDrafts);
+    setOpenDatePicker(null);
   };
 
   const createGame = async () => {
@@ -428,6 +574,116 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
     runWithVerifiedWarning(() => setGameForm(updater));
   };
 
+  const updateAvailabilityDraft = (
+    field: keyof AvailabilityDrafts,
+    value: string,
+    target: AvailabilityTarget
+  ) => {
+    runWithVerifiedWarning(() => {
+      setAvailabilityDrafts(previous => {
+        const next = { ...previous, [field]: value };
+        const parsed = target === 'from'
+          ? fromRussianDateTimeInput(next.fromDate, next.fromTime)
+          : fromRussianDateTimeInput(next.untilDate, next.untilTime);
+
+        if (parsed.valid) {
+          setGameForm(current => target === 'from'
+            ? { ...current, availableFromUtc: parsed.value }
+            : { ...current, availableUntilUtc: parsed.value });
+        }
+
+        return next;
+      });
+    });
+  };
+
+  const openCalendar = (target: AvailabilityTarget) => {
+    const currentDate = target === 'from' ? availabilityDrafts.fromDate : availabilityDrafts.untilDate;
+    setCalendarMonth(monthFromRussianDate(currentDate));
+    setOpenDatePicker(current => current === target ? null : target);
+  };
+
+  const selectCalendarDate = (target: AvailabilityTarget, date: Date) => {
+    const field = target === 'from' ? 'fromDate' : 'untilDate';
+    updateAvailabilityDraft(field, formatRussianDate(date.getDate(), date.getMonth() + 1, date.getFullYear()), target);
+    setOpenDatePicker(null);
+  };
+
+  const renderDatePicker = (target: AvailabilityTarget, value: string, testIdPrefix: string) => {
+    const selected = parseRussianDate(value);
+    const days = buildCalendarDays(calendarMonth);
+    return (
+      <div className={styles.datePickerShell}>
+        <div className={styles.dateInputWrap}>
+          <input
+            data-testid={`${testIdPrefix}-date-input`}
+            className={styles.input}
+            type="text"
+            inputMode="numeric"
+            placeholder="ДД.ММ.ГГГГ"
+            value={value}
+            onChange={e => updateAvailabilityDraft(target === 'from' ? 'fromDate' : 'untilDate', e.target.value, target)}
+          />
+          <button className={styles.datePickerButton} type="button" onClick={() => openCalendar(target)} aria-label="Открыть календарь">
+            ◷
+          </button>
+        </div>
+        {openDatePicker === target && (
+          <div className={styles.calendarPopover}>
+            <div className={styles.calendarHead}>
+              <button type="button" onClick={() => setCalendarMonth(previous => addCalendarMonths(previous, -1))}>‹</button>
+              <span>{MONTH_LABELS[calendarMonth.getMonth()]} {calendarMonth.getFullYear()}</span>
+              <button type="button" onClick={() => setCalendarMonth(previous => addCalendarMonths(previous, 1))}>›</button>
+            </div>
+            <div className={styles.calendarGrid}>
+              {WEEKDAY_LABELS.map(day => <span className={styles.calendarWeekday} key={day}>{day}</span>)}
+              {days.map(date => {
+                const sameMonth = date.getMonth() === calendarMonth.getMonth();
+                const isSelected = selected
+                  && selected.day === date.getDate()
+                  && selected.month === date.getMonth() + 1
+                  && selected.year === date.getFullYear();
+                return (
+                  <button
+                    className={`${styles.calendarDay} ${sameMonth ? '' : styles.calendarDayMuted} ${isSelected ? styles.calendarDaySelected : ''}`}
+                    key={date.toISOString()}
+                    type="button"
+                    onClick={() => selectCalendarDate(target, date)}
+                  >
+                    {date.getDate()}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderTimePicker = (target: AvailabilityTarget, value: string, testIdPrefix: string) => {
+    const [rawHour = '', rawMinute = ''] = value.split(':');
+    const hour = HOURS.includes(rawHour) ? rawHour : '';
+    const minute = MINUTES.includes(rawMinute) ? rawMinute : '';
+    const update = (nextHour: string, nextMinute: string) => {
+      updateAvailabilityDraft(target === 'from' ? 'fromTime' : 'untilTime', nextHour || nextMinute ? `${nextHour}:${nextMinute}` : '', target);
+    };
+
+    return (
+      <div className={styles.timePicker} data-testid={`${testIdPrefix}-time-input`}>
+        <select data-testid={`${testIdPrefix}-hour-select`} className={styles.timeSelect} value={hour} onChange={e => update(e.target.value, minute)} aria-label="Часы">
+          <option value="">ЧЧ</option>
+          {HOURS.map(item => <option value={item} key={item}>{item}</option>)}
+        </select>
+        <span>:</span>
+        <select data-testid={`${testIdPrefix}-minute-select`} className={styles.timeSelect} value={minute} onChange={e => update(hour, e.target.value)} aria-label="Минуты">
+          <option value="">ММ</option>
+          {MINUTES.map(item => <option value={item} key={item}>{item}</option>)}
+        </select>
+      </div>
+    );
+  };
+
   const updateTaskForm = (updater: (previous: TaskUpsertRequest) => TaskUpsertRequest) => {
     runWithVerifiedWarning(() => setTaskForm(updater));
   };
@@ -449,6 +705,17 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
 
   const saveGame = () => {
     runWithVerifiedWarning(() => void saveGameConfirmed());
+  };
+
+  const copyGameLink = async () => {
+    if (!game) return;
+    const link = `${window.location.origin}/game/${game.id}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      showSuccess('Ссылка на игру скопирована.');
+    } catch {
+      setErr(`Не удалось скопировать ссылку автоматически: ${link}`);
+    }
   };
 
   const deleteGame = async () => {
@@ -931,6 +1198,104 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
         </div>
       </div>
 
+      <div className={styles.settingsPanel}>
+        <label className={styles.toggleRow}>
+          <input
+            data-testid="game-private-input"
+            type="checkbox"
+            checked={gameForm.isPrivate}
+            onChange={e => {
+              const value = e.target.checked;
+              updateGameForm(p => ({ ...p, isPrivate: value }));
+            }}
+          />
+          <span>
+            <b>Приватная игра</b>
+            <small>Доступна только по прямой ссылке и не отображается в каталоге.</small>
+          </span>
+        </label>
+        <div className={styles.settingGroup}>
+          <label className={styles.toggleRow}>
+            <input
+              data-testid="game-attempt-limit-toggle"
+              type="checkbox"
+              checked={attemptLimitEnabled}
+              onChange={e => {
+                const value = e.target.checked;
+                runWithVerifiedWarning(() => {
+                  setAttemptLimitEnabled(value);
+                  setGameForm(p => ({ ...p, maxAttemptsPerUser: value ? p.maxAttemptsPerUser ?? 1 : null }));
+                });
+              }}
+            />
+            <span>
+              <b>Ограничить количество попыток</b>
+              <small>Можно задать максимум прохождений для каждого пользователя.</small>
+            </span>
+          </label>
+          {attemptLimitEnabled && (
+            <div className={styles.settingDetails}>
+              <div className={styles.col}>
+                <label className={styles.label}>Количество попыток</label>
+                <input
+                  data-testid="game-max-attempts-input"
+                  className={styles.input}
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={gameForm.maxAttemptsPerUser ?? 1}
+                  onChange={e => {
+                    const value = Math.max(1, Math.floor(Number(e.target.value) || 1));
+                    updateGameForm(p => ({ ...p, maxAttemptsPerUser: value }));
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+        <div className={styles.settingGroup}>
+          <label className={styles.toggleRow}>
+            <input
+              data-testid="game-time-limit-toggle"
+              type="checkbox"
+              checked={timeLimitEnabled}
+              onChange={e => {
+                const value = e.target.checked;
+                runWithVerifiedWarning(() => {
+                  setTimeLimitEnabled(value);
+                  if (!value) {
+                    setAvailabilityDrafts(emptyAvailabilityDrafts);
+                    setGameForm(p => ({ ...p, availableFromUtc: null, availableUntilUtc: null }));
+                  }
+                });
+              }}
+            />
+            <span>
+              <b>Ограничить тест по времени</b>
+              <small>Даты вводятся в локальном часовом поясе браузера.</small>
+            </span>
+          </label>
+          {timeLimitEnabled && (
+            <div className={`${styles.settingDetails} ${styles.settingDetailsGrid}`}>
+              <div className={styles.col}>
+                <label className={styles.label}>Доступна с</label>
+                <div className={styles.dateTimeFields}>
+                  {renderDatePicker('from', availabilityDrafts.fromDate, 'game-available-from')}
+                  {renderTimePicker('from', availabilityDrafts.fromTime, 'game-available-from')}
+                </div>
+              </div>
+              <div className={styles.col}>
+                <label className={styles.label}>Доступна до</label>
+                <div className={styles.dateTimeFields}>
+                  {renderDatePicker('until', availabilityDrafts.untilDate, 'game-available-until')}
+                  {renderTimePicker('until', availabilityDrafts.untilTime, 'game-available-until')}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
       {game && (
         <>
           <div className={styles.row2}>
@@ -967,6 +1332,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
         ) : (
           <>
             <button data-testid="save-game" className={styles.primary} disabled={busy || !game} onClick={saveGame} type="button">Сохранить</button>
+            <button data-testid="copy-game-link" className={styles.secondary} disabled={busy || !game} onClick={() => void copyGameLink()} type="button">Скопировать ссылку</button>
             <button data-testid="delete-game" className={styles.danger} disabled={busy || !game} onClick={deleteGame} type="button">Удалить</button>
             {mode === 'mine' && game && game.status !== 1 && game.status !== 2 && (
               <button
@@ -1304,7 +1670,7 @@ export const AdminDashboard = ({ mode = 'mine' }: { mode?: DashboardMode }) => {
         {activeTab === 'reviews' && reviewsTab}
       </div>
     );
-  }, [activeTab, aiBusy, busy, creatingNew, game, gameForm, loadingGame, mode, moderationBusy, openAnswers, reviews, reviewSort, stats, tabs, taskEditId, taskForm, taskFormOpen]);
+  }, [activeTab, aiBusy, attemptLimitEnabled, availabilityDrafts, busy, calendarMonth, creatingNew, game, gameForm, loadingGame, mode, moderationBusy, openAnswers, openDatePicker, reviews, reviewSort, stats, tabs, taskEditId, taskForm, taskFormOpen, timeLimitEnabled]);
 
   return (
     <div className={styles.page}>

@@ -161,6 +161,202 @@
   margin-top: 10px;
 }
 
+.settingsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.settingsPanel {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.settingGroup {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.settingDetails {
+  margin-left: 28px;
+  padding: 10px 12px;
+  border-left: 2px solid rgba(124, 58, 237, 0.18);
+  background: rgba(255, 255, 255, 0.58);
+  border-radius: 12px;
+}
+
+.settingDetailsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.dateTimeFields {
+  display: grid;
+  grid-template-columns: minmax(190px, 1fr) minmax(128px, 0.68fr);
+  gap: 8px;
+}
+
+.datePickerShell {
+  position: relative;
+  min-width: 0;
+}
+
+.dateInputWrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  gap: 6px;
+}
+
+.datePickerButton,
+.calendarHead button {
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  background: #ffffff;
+  color: rgba(17, 24, 39, 0.82);
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.datePickerButton {
+  min-width: 0;
+  border-radius: 12px;
+  font-size: 17px;
+}
+
+.calendarPopover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 30;
+  width: 292px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  background: #ffffff;
+  box-shadow: 0 18px 44px rgba(17, 24, 39, 0.18);
+}
+
+.calendarHead {
+  display: grid;
+  grid-template-columns: 34px 1fr 34px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+  color: #111827;
+  font-weight: 900;
+  text-align: center;
+}
+
+.calendarHead button {
+  height: 34px;
+  border-radius: 10px;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.calendarGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calendarWeekday {
+  padding: 4px 0;
+  color: rgba(17, 24, 39, 0.48);
+  font-size: 11px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.calendarDay {
+  height: 34px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(17, 24, 39, 0.84);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.calendarDay:hover {
+  background: rgba(124, 58, 237, 0.08);
+}
+
+.calendarDayMuted {
+  color: rgba(17, 24, 39, 0.32);
+}
+
+.calendarDaySelected {
+  background: #7c3aed;
+  color: #ffffff;
+}
+
+.timePicker {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  background: #ffffff;
+}
+
+.timePicker span {
+  color: rgba(17, 24, 39, 0.5);
+  font-weight: 900;
+}
+
+.timeSelect {
+  min-width: 0;
+  height: 34px;
+  border: 0;
+  background: transparent;
+  color: #111827;
+  outline: none;
+  font-weight: 800;
+}
+
+.toggleRow {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(17, 24, 39, 0.1);
+  background: rgba(255, 255, 255, 0.72);
+  cursor: pointer;
+}
+
+.toggleRow input {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: #7c3aed;
+}
+
+.toggleRow span {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.toggleRow b {
+  color: #111827;
+  font-size: 13px;
+}
+
+.toggleRow small {
+  color: rgba(17, 24, 39, 0.62);
+  line-height: 1.35;
+}
+
 .taskSettingsGrid {
   display: grid;
   grid-template-columns: minmax(170px, 1fr) 140px minmax(320px, 2fr);
@@ -733,11 +929,25 @@
     grid-template-columns: 1fr;
   }
 
+  .settingsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .settingDetails,
+  .settingDetailsGrid {
+    margin-left: 0;
+    grid-template-columns: 1fr;
+  }
+
   .taskSettingsGrid {
     grid-template-columns: 1fr;
   }
 
   .timeControl {
+    grid-template-columns: 1fr;
+  }
+
+  .dateTimeFields {
     grid-template-columns: 1fr;
   }
 
