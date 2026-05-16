@@ -161,7 +161,7 @@ export const QuizPlayPage = () => {
   const loadStartPayload = async () => {
     if (!gameId) return;
     if (!getAccessToken()) {
-      navigate('/login');
+      navigate(`/login?returnUrl=${encodeURIComponent(`/game/${gameId}/play`)}`);
       return;
     }
 

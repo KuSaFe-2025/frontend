@@ -43,6 +43,10 @@ type GameMeta = {
   createdAtUtc: string;
   tasksCount: number;
   themeColor?: string | null;
+  isPrivate: boolean;
+  maxAttemptsPerUser?: number | null;
+  availableFromUtc?: string | null;
+  availableUntilUtc?: string | null;
   status: number;
   lastModeratedAtUtc?: string | null;
   moderationDecision?: string | null;
@@ -131,6 +135,34 @@ function localizeModerationReason(reason?: string) {
   return knownReasons[normalized] ?? normalized;
 }
 
+function formatLocalDateTime(value?: string | null) {
+  if (!value) return '';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('ru-RU');
+}
+
+function getAvailabilityState(game?: GameMeta | null) {
+  if (!game) return { canStart: false, label: '' };
+
+  const now = Date.now();
+  const from = game.availableFromUtc ? new Date(game.availableFromUtc).getTime() : null;
+  const until = game.availableUntilUtc ? new Date(game.availableUntilUtc).getTime() : null;
+
+  if (from && now < from) {
+    return { canStart: false, label: `Игра будет доступна с ${formatLocalDateTime(game.availableFromUtc)}` };
+  }
+
+  if (until && now > until) {
+    return { canStart: false, label: `Период прохождения завершён ${formatLocalDateTime(game.availableUntilUtc)}` };
+  }
+
+  if (from && until) return { canStart: true, label: `Доступна с ${formatLocalDateTime(game.availableFromUtc)} до ${formatLocalDateTime(game.availableUntilUtc)}` };
+  if (from) return { canStart: true, label: `Доступна с ${formatLocalDateTime(game.availableFromUtc)}` };
+  if (until) return { canStart: true, label: `Доступна до ${formatLocalDateTime(game.availableUntilUtc)}` };
+
+  return { canStart: true, label: '' };
+}
+
 export const QuizPage = () => {
   const params = useParams<{ gameId?: string; quizId?: string }>();
   const gameId = params.gameId ?? params.quizId;
@@ -145,6 +177,7 @@ export const QuizPage = () => {
   const [attemptSort, setAttemptSort] = useState('date_desc');
   const [reviewSort, setReviewSort] = useState('new');
   const [completedOnly, setCompletedOnly] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
   const moderationToastIdRef = useRef<string | undefined>(undefined);
 
   const bg = useMemo(() => buildGradient(game?.themeColor), [game?.themeColor]);
@@ -153,6 +186,7 @@ export const QuizPage = () => {
     if (!description || game?.descriptionFormat !== 1) return null;
     return DOMPurify.sanitize(marked.parse(description, { async: false }) as string);
   }, [description, game?.descriptionFormat]);
+  const availability = useMemo(() => getAvailabilityState(game), [game]);
 
   const loadGame = async () => {
     if (!gameId) return;
@@ -198,15 +232,32 @@ export const QuizPage = () => {
 
   const start = async () => {
     if (!getAccessToken()) {
-      navigate('/login');
+      navigate(`/login?returnUrl=${encodeURIComponent(`/game/${gameId}/play`)}`);
       return;
     }
+    if (!availability.canStart) return;
     try {
       const res = await api.post(`/v1/games/${gameId}/start`, {});
       sessionStorage.setItem(`game:${gameId}:startPayload`, JSON.stringify(res.data));
       navigate(`/game/${gameId}/play`);
     } catch (e: any) {
-      alert(`Не удалось начать игру: ${String(e?.response?.data ?? e?.message ?? 'unknown')}`);
+      setStartError(String(e?.response?.data ?? e?.message ?? 'Не удалось начать игру'));
+    }
+  };
+
+  const copyGameLink = async () => {
+    if (!game) return;
+    const link = `${window.location.origin}/game/${game.id}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      toaster.create({
+        title: 'Ссылка скопирована',
+        description: 'Полная ссылка на игру сохранена в буфер обмена.',
+        type: 'success',
+        closable: true,
+      });
+    } catch {
+      setStartError(`Не удалось скопировать ссылку автоматически. Ссылка: ${link}`);
     }
   };
 
@@ -272,7 +323,7 @@ export const QuizPage = () => {
     );
   }
 
-  const canPlay = game.status === 1 || game.canEdit;
+  const canPlay = (game.status === 1 || game.canEdit) && availability.canStart;
 
   return (
     <div className={styles.page}>
@@ -309,6 +360,21 @@ export const QuizPage = () => {
                   ))}
                 </div>
 
+                {(game.isPrivate || game.maxAttemptsPerUser || availability.label) && (
+                  <>
+                  <div className={styles.accessDivider} aria-hidden="true" />
+                  <div className={styles.accessBadges}>
+                    {game.isPrivate && <span className={styles.accessBadge}>Доступ по ссылке</span>}
+                    {game.maxAttemptsPerUser && <span className={`${styles.accessBadge} ${styles.accessBadgeBlocked}`}>До {game.maxAttemptsPerUser} попыток</span>}
+                    {availability.label && (
+                      <span className={`${styles.accessBadge} ${styles.accessBadgeBlocked}`}>
+                        {availability.label}
+                      </span>
+                    )}
+                  </div>
+                  </>
+                )}
+
                 {game.status === 1 && (
                   <div className={styles.approvedBadge}>
                     <span className={styles.approvedDot} aria-hidden="true" />
@@ -328,6 +394,8 @@ export const QuizPage = () => {
                 ) : (
                   <button className={styles.startBtn} disabled>Игра недоступна</button>
                 )}
+
+                <button data-testid="copy-game-link" className={styles.backBtn} onClick={copyGameLink} type="button">Скопировать ссылку</button>
 
                 {game.canEdit && game.status !== 1 && game.status !== 2 && (
                   <>
@@ -353,6 +421,20 @@ export const QuizPage = () => {
             </section>
             <LeaderboardCard gameId={game.id} />
           </div>
+          {startError && (
+            <div className={styles.modalOverlay} role="dialog" aria-modal="true" aria-labelledby="start-error-title">
+              <div className={styles.modal}>
+                <div className={styles.modalIcon} aria-hidden="true">!</div>
+                <div className={styles.modalBody}>
+                  <div id="start-error-title" className={styles.modalTitle}>Не удалось начать игру</div>
+                  <div className={styles.modalText}>{startError}</div>
+                  <div className={styles.modalActions}>
+                    <button className={styles.startBtn} onClick={() => setStartError(null)} type="button">Понятно</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
           <section className={styles.detailsPanel}>
             <div className={styles.detailsHead}>
               <div className={styles.detailsTabs} role="tablist">

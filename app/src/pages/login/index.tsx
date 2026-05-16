@@ -1,5 +1,5 @@
 import { type FormEvent, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import styles from './Login.module.scss';
 import { api, setAccessToken } from '@/shared/lib';
 
@@ -15,6 +15,7 @@ type AuthResponse = {
 
 export const LoginPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<Mode>('login');
 
   const title = useMemo(() => (mode === 'login' ? 'Авторизация' : 'Регистрация'), [mode]);
@@ -40,7 +41,9 @@ export const LoginPage = () => {
       if (!token) return alert('Ошибка: сервер не вернул accessToken');
 
       setAccessToken(token);
-      navigate('/games');
+      const returnUrl = searchParams.get('returnUrl');
+      const safeReturnUrl = returnUrl && returnUrl.startsWith('/') && !returnUrl.startsWith('//') ? returnUrl : '/games';
+      navigate(safeReturnUrl);
     } catch (e: any) {
       console.error(e);
       alert('Ошибка: ' + (e?.response?.data ?? e?.message ?? 'unknown'));

@@ -360,6 +360,37 @@
   box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.12);
 }
 
+.accessBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.accessDivider {
+  height: 1px;
+  margin: 4px 0 2px;
+  background: rgba(15, 23, 42, 0.1);
+}
+
+.accessBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  background: rgba(255, 255, 255, 0.72);
+  color: rgba(15, 23, 42, 0.76);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.accessBadgeBlocked {
+  border-color: rgba(220, 38, 38, 0.18);
+  background: rgba(220, 38, 38, 0.08);
+  color: #991b1b;
+}
+
 .metaLabel {
   font-size: 13px;
   font-weight: 700;
@@ -630,6 +661,70 @@
 .backBtn:hover {
   transform: translateY(-1px);
   background: rgba(124, 58, 237, 0.06);
+}
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.modal {
+  width: min(520px, 100%);
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 14px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #ffffff;
+  box-shadow: 0 26px 70px rgba(15, 23, 42, 0.24);
+}
+
+.modalIcon {
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(220, 38, 38, 0.1);
+  color: #991b1b;
+  font-weight: 900;
+}
+
+.modalBody {
+  min-width: 0;
+}
+
+.modalTitle {
+  color: #111827;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.modalText {
+  margin-top: 8px;
+  color: rgba(17, 24, 39, 0.72);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.modalActions {
+  margin-top: 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.modalActions .startBtn {
+  width: auto;
+  min-width: 130px;
+  margin-top: 0;
+  padding: 0 18px;
 }
 
 /* -------- BOTTOM PATTERN -------- */
